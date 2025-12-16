@@ -14,15 +14,20 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { Calendar, BookOpen, MessageSquare, User, Megaphone, Palette, Bus, Users, CloudRain, Flame, QrCode } from 'lucide-react-native';
+import { 
+  Calendar, BookOpen, User, Megaphone, Palette, Bus, Users, 
+  Flame, QrCode, 
+  CloudRain, Sun, Cloud, CloudSnow, CloudLightning, CloudDrizzle 
+} from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Colors } from '@/constants/Colors';
-import { MOCK_USER, MOCK_BUSES, MOCK_PARTNERS } from '@/api/mockData';
-import { HomeScreenProps, MainTabParamList } from '@/types/navigation'; // MainTabParamList'i import ediyoruz
+import { MOCK_BUSES, MOCK_PARTNERS } from '@/api/mockData';
+import { HomeScreenProps, MainTabParamList } from '@/types/navigation';
 import { useThemeMode } from '@/context/ThemeContext';
+import MustafaImage from '../assets/images/mustafa.jpg';
 
 const HEADER_NAV = [
-    { name: 'Başkan', icon: User, image: 'https://images.unsplash.com/photo-1560250056-07ba64664864?q=80&w=2574&auto=format&fit=crop' },
+    { name: 'Başkan', icon: User, image: MustafaImage },
     { name: 'Duyurular', icon: Megaphone, image: 'https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?q=80&w=2670&auto=format&fit=crop' },
     { name: 'Kültür Sanat', icon: Palette, image: 'https://images.unsplash.com/photo-1524368535928-5b5e00ddc76b?q=80&w=2670&auto=format&fit=crop' },
     { name: 'Ulaşım', icon: Bus, image: 'https://images.unsplash.com/photo-1570125909232-eb263c1869e7?q=80&w=2670&auto=format&fit=crop' },
@@ -44,21 +49,11 @@ const QUOTES_OF_DAY = [
 ];
 
 const STORY_DETAILS: Record<string, { description: string }> = {
-  Başkan: {
-    description: 'Başkanın gençlere özel mesajlarını ve projelerini keşfet.',
-  },
-  Duyurular: {
-    description: 'Şanlıurfa’da gençleri ilgilendiren en güncel haber ve duyurular.',
-  },
-  'Kültür Sanat': {
-    description: 'Konserler, sergiler, tiyatrolar ve çok daha fazlası burada.',
-  },
-  Ulaşım: {
-    description: 'Otobüs hatları, seferler ve kampüs ulaşımı hakkında hızlı bilgiler.',
-  },
-  Gençlik: {
-    description: 'Gençlik merkezleri, kulüpler ve etkinliklerden haberdar ol.',
-  },
+  Başkan: { description: 'Başkanın gençlere özel mesajlarını ve projelerini keşfet.' },
+  Duyurular: { description: 'Şanlıurfa’da gençleri ilgilendiren en güncel haber ve duyurular.' },
+  'Kültür Sanat': { description: 'Konserler, sergiler, tiyatrolar ve çok daha fazlası burada.' },
+  Ulaşım: { description: 'Otobüs hatları, seferler ve kampüs ulaşımı hakkında hızlı bilgiler.' },
+  Gençlik: { description: 'Gençlik merkezleri, kulüpler ve etkinliklerden haberdar ol.' },
 };
 
 const HomeScreen = () => {
@@ -66,15 +61,58 @@ const HomeScreen = () => {
   const nextBus = MOCK_BUSES[0];
   const quoteOfDay = QUOTES_OF_DAY[new Date().getDate() % QUOTES_OF_DAY.length];
   const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
-  const [storyProgress, setStoryProgress] = useState(0); // 0 - 1
+  const [storyProgress, setStoryProgress] = useState(0); 
   const rainAnim = useRef(new Animated.Value(0)).current;
 
-  const activeStory =
-    activeStoryIndex !== null ? HEADER_NAV[activeStoryIndex] : null;
+  // --- HAVA DURUMU KISMI ---
+  const [weatherData, setWeatherData] = useState<any>(null);
+  const API_KEY = "86c0bfac95367500f94f82e107ad2332"; 
+  const SEHIR_KOORDINAT = { lat: 37.1674, lon: 38.7955 };
+
+  useEffect(() => {
+    fetchWeather();
+  }, []);
+
+  const fetchWeather = async () => {
+    try {
+      const response = await fetch(
+        `https://api.openweathermap.org/data/2.5/weather?lat=${SEHIR_KOORDINAT.lat}&lon=${SEHIR_KOORDINAT.lon}&units=metric&lang=tr&appid=${API_KEY}`
+      );
+      const data = await response.json();
+      if (data.cod !== 200) {
+          console.log("Hava durumu API hatası:", data.message);
+      } else {
+          setWeatherData(data);
+      }
+    } catch (error) {
+      console.log("Hava durumu hatası:", error);
+    }
+  };
+
+  const getWeatherIcon = () => {
+    if (!weatherData) return <Cloud color={Colors.white} size={26} />;
+    const conditionId = weatherData.weather[0].id;
+    if (conditionId === 800) return <Sun color={Colors.white} size={26} />;
+    if (conditionId >= 200 && conditionId < 300) return <CloudLightning color={Colors.white} size={26} />;
+    if (conditionId >= 300 && conditionId < 500) return <CloudDrizzle color={Colors.white} size={26} />;
+    if (conditionId >= 500 && conditionId < 600) return <CloudRain color={Colors.white} size={26} />;
+    if (conditionId >= 600 && conditionId < 700) return <CloudSnow color={Colors.white} size={26} />;
+    if (conditionId >= 700 && conditionId < 800) return <Cloud color={Colors.white} size={26} />;
+    return <Cloud color={Colors.white} size={26} />;
+  };
+
+  const handleWeatherDetail = () => {
+    if (weatherData) {
+      navigation.navigate('WeatherDetail', { weatherData });
+    } else {
+      navigation.navigate('WeatherDetail');
+    }
+  };
+
+  const activeStory = activeStoryIndex !== null ? HEADER_NAV[activeStoryIndex] : null;
 
   const handleNavigation = (item: typeof QUICK_ACCESS_NAV[0]) => {
       if(item.type === 'tab') {
-          // Tip güvenliği için ekran adını MainTabParamList'ten geldiğini belirtiyoruz
           navigation.navigate('Main', { screen: item.screen as keyof MainTabParamList });
       } else {
           navigation.navigate(item.screen as 'Events' | 'Magazine');
@@ -94,37 +132,24 @@ const HomeScreen = () => {
   const handleStoryDetail = () => {
     if (activeStoryIndex === null) return;
     const story = HEADER_NAV[activeStoryIndex];
-
     switch (story.name) {
-      case 'Ulaşım':
-        navigation.navigate('Main', { screen: 'Transport' as keyof MainTabParamList });
-        break;
-      case 'Kültür Sanat':
-        navigation.navigate('Magazine');
-        break;
+      case 'Ulaşım': navigation.navigate('Main', { screen: 'Transport' as keyof MainTabParamList }); break;
+      case 'Kültür Sanat': navigation.navigate('Magazine'); break;
       case 'Gençlik':
-      case 'Duyurular':
-        navigation.navigate('Events');
-        break;
-      default:
-        navigation.navigate('Profile');
-        break;
+      case 'Duyurular': navigation.navigate('Events'); break;
+      default: navigation.navigate('Profile'); break;
     }
-
     setActiveStoryIndex(null);
   };
 
-  // 5 saniyelik otomatik geçiş için zamanlayıcı
   useEffect(() => {
     if (activeStoryIndex === null) {
       setStoryProgress(0);
       return;
     }
-
     setStoryProgress(0);
-    const totalDuration = 5000; // 5 sn
+    const totalDuration = 5000;
     const intervalMs = 50;
-
     const startedAt = Date.now();
     const timer = setInterval(() => {
       const elapsed = Date.now() - startedAt;
@@ -135,11 +160,9 @@ const HomeScreen = () => {
         handleNextStory();
       }
     }, intervalMs);
-
     return () => clearInterval(timer);
   }, [activeStoryIndex]);
 
-  // Hava durumu için yağmur animasyonu
   useEffect(() => {
     Animated.loop(
       Animated.timing(rainAnim, {
@@ -159,20 +182,12 @@ const HomeScreen = () => {
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState) =>
-        Math.abs(gestureState.dy) > 10,
+      onMoveShouldSetPanResponder: (_, gestureState) => Math.abs(gestureState.dy) > 10,
       onPanResponderRelease: (_, gestureState) => {
         const { dy } = gestureState;
-        if (dy < -40) {
-          // Yukarı kaydır: detay sayfasına git
-          handleStoryDetail();
-        } else if (dy > 40) {
-          // Aşağı kaydır: kapat
-          setActiveStoryIndex(null);
-        } else {
-          // Hafif dokunuş: sonraki story
-          handleNextStory();
-        }
+        if (dy < -40) handleStoryDetail();
+        else if (dy > 40) setActiveStoryIndex(null);
+        else handleNextStory();
       },
     })
   ).current;
@@ -182,28 +197,12 @@ const HomeScreen = () => {
 
   return (
     <View style={[styles.root, isDark && { backgroundColor: Colors.black }]}>
-      {/* Sadece status bar alanı */}
-      <SafeAreaView
-        style={[styles.statusBarArea, isDark && { backgroundColor: Colors.black }]}
-        edges={['top']}
-      />
-
-      {/* İçerik kısmı */}
-      <SafeAreaView
-        style={[styles.container, isDark && { backgroundColor: '#020617' }]}
-        edges={['left', 'right', 'bottom']}
-      >
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 120 }}
-        >
+      <SafeAreaView style={[styles.statusBarArea, isDark && { backgroundColor: Colors.black }]} edges={['top']} />
+      <SafeAreaView style={[styles.container, isDark && { backgroundColor: '#020617' }]} edges={['left', 'right', 'bottom']}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
         {/* Header */}
         <LinearGradient
-          colors={
-            isDark
-              ? ['#020617', '#1f2937']
-              : [Colors.primary.violet, Colors.primary.indigo]
-          }
+          colors={isDark ? ['#020617', '#1f2937'] : [Colors.primary.violet, Colors.primary.indigo]}
           style={styles.header}
         >
           <View style={styles.headerTop}>
@@ -217,7 +216,6 @@ const HomeScreen = () => {
           <Text style={styles.greeting}>Selam, Mert! 👋</Text>
           <Text style={styles.greetingSub}>Bugün nasıl gidiyor?</Text>
 
-          {/* Header Navigation */}
           <View style={styles.headerNavContainer}>
               {HEADER_NAV.map((item, index) => (
                   <TouchableOpacity
@@ -230,7 +228,7 @@ const HomeScreen = () => {
                         colors={[Colors.primary.indigo, Colors.primary.violet, Colors.accent.rose]}
                         style={styles.storyBorder}
                       >
-                        <Image source={{ uri: item.image }} style={styles.headerNavImage} />
+                        <Image source={typeof item.image === 'string' ? { uri: item.image } : item.image} style={styles.headerNavImage} />
                       </LinearGradient>
                       <Text style={styles.headerNavText}>{item.name}</Text>
                   </TouchableOpacity>
@@ -238,16 +236,13 @@ const HomeScreen = () => {
           </View>
         </LinearGradient>
 
-        {/* Dashboard alanı */}
+        {/* Dashboard */}
         <View style={styles.dashboardInner}>
-          {/* Floating summary card: Genç Kart + Sıradaki Otobüs */}
           <View style={styles.statsCard}>
               <TouchableOpacity
                 style={styles.statsLeft}
                 activeOpacity={0.9}
-                onPress={() =>
-                  navigation.navigate('Main', { screen: 'GencKart' as keyof MainTabParamList })
-                }
+                onPress={() => navigation.navigate('Main', { screen: 'GencKart' as keyof MainTabParamList })}
               >
                   <Text style={styles.statsTitle}>GENÇ KART</Text>
                   <Text style={styles.statsValue}>Göster & Geç</Text>
@@ -256,28 +251,18 @@ const HomeScreen = () => {
               <TouchableOpacity
                 style={styles.statsRight}
                 activeOpacity={0.9}
-                onPress={() =>
-                  navigation.navigate('Main', { screen: 'Transport' as keyof MainTabParamList })
-                }
+                onPress={() => navigation.navigate('Main', { screen: 'Transport' as keyof MainTabParamList })}
               >
                   <Text style={styles.statsTitle}>SIRADAKİ OTOBÜS</Text>
-                  <Text style={styles.statsValue}>
-                    {nextBus.lineNumber} • {nextBus.arrivalTime} dk
-                  </Text>
+                  <Text style={styles.statsValue}>{nextBus.lineNumber} • {nextBus.arrivalTime} dk</Text>
               </TouchableOpacity>
           </View>
 
           <View style={styles.content}>
-            {/* Quick Access */}
             <Text style={styles.sectionTitle}>HIZLI ERİŞİM</Text>
             <View style={styles.quickAccessContainer}>
                 {QUICK_ACCESS_NAV.map(item => (
-                    <TouchableOpacity 
-                        key={item.name} 
-                        style={styles.quickAccessItem}
-                        onPress={() => handleNavigation(item)}
-                    >
-                        {/* Arka plan rengini View'dan alıp BlurView'e taşıyoruz ve alpha ekliyoruz */}
+                    <TouchableOpacity key={item.name} style={styles.quickAccessItem} onPress={() => handleNavigation(item)}>
                         <View style={styles.quickAccessIcon}>
                             <BlurView intensity={90} tint="light" style={styles.blurView}>
                                 <View style={[styles.colorOverlay, { backgroundColor: item.color, opacity: 0.6 }]} />
@@ -290,21 +275,31 @@ const HomeScreen = () => {
             </View>
 
             <View style={styles.widgetsContainer}>
-                {/* Weather Widget */}
-                <LinearGradient
-                    colors={['#fbbf24', '#f59e0b']}
-                    style={[styles.widgetCard, styles.weatherCard]}
+                {/* Weather Widget - TASARIM DÜZELTİLDİ */}
+                <TouchableOpacity
+                    activeOpacity={0.9}
+                    onPress={handleWeatherDetail}
+                    // padding: 0 ve overflow: hidden çok önemli, dışarı taşmayı engeller
+                    style={[styles.widgetCard, { padding: 0, paddingHorizontal: 0, paddingVertical: 0, overflow: 'hidden' }]}
                 >
-                    <View>
-                        <Text style={styles.widgetLabel}>HAVA</Text>
-                        <Text style={styles.weatherTemp}>14°</Text>
-                    </View>
-                    <View style={styles.weatherIconWrapper}>
-                      <Animated.View style={{ transform: [{ translateY: rainTranslate }] }}>
-                        <CloudRain color={Colors.white} size={26} />
-                      </Animated.View>
-                    </View>
-                </LinearGradient>
+                    <LinearGradient
+                        colors={['#fbbf24', '#f59e0b']}
+                        // İçerideki elemanlar için padding burada veriliyor
+                        style={[styles.weatherCard, { flex: 1, paddingHorizontal: 10, paddingVertical: 8 }]}
+                    >
+                        <View>
+                            <Text style={styles.widgetLabel}>HAVA</Text>
+                            <Text style={styles.weatherTemp}>
+                                {weatherData ? `${Math.round(weatherData.main.temp)}°` : '--'}
+                            </Text>
+                        </View>
+                        <View style={styles.weatherIconWrapper}>
+                            <Animated.View style={{ transform: [{ translateY: rainTranslate }] }}>
+                                {getWeatherIcon()}
+                            </Animated.View>
+                        </View>
+                    </LinearGradient>
+                </TouchableOpacity>
 
                 {/* Quote of the day Widget */}
                 <TouchableOpacity style={[styles.widgetCard, styles.quoteCard]}>
@@ -312,19 +307,12 @@ const HomeScreen = () => {
                       <Text style={[styles.widgetLabel, styles.widgetLabelQuote]}>GÜNÜN SÖZÜ</Text>
                       <Flame color={Colors.accent.rose} size={20} />
                     </View>
-                    <Text style={styles.quoteText} numberOfLines={2}>
-                      "{quoteOfDay}"
-                    </Text>
+                    <Text style={styles.quoteText} numberOfLines={2}>"{quoteOfDay}"</Text>
                 </TouchableOpacity>
             </View>
 
-            {/* Discount Partners Carousel */}
             <Text style={[styles.sectionTitle, { marginTop: 28 }]}>Genç Kart indirimleri</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.partnersScrollContent}
-            >
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.partnersScrollContent}>
               {MOCK_PARTNERS.map(partner => {
                 const Icon = partner.icon;
                 return (
@@ -334,12 +322,8 @@ const HomeScreen = () => {
                     activeOpacity={0.9}
                     onPress={() => navigation.navigate('PartnerDetail', { partnerId: partner.id })}
                   >
-                    <View style={styles.partnerIconWrapper}>
-                      <Icon color={partner.iconColor} size={22} />
-                    </View>
-                    <Text style={styles.partnerName} numberOfLines={1}>
-                      {partner.name}
-                    </Text>
+                    <View style={styles.partnerIconWrapper}><Icon color={partner.iconColor} size={22} /></View>
+                    <Text style={styles.partnerName} numberOfLines={1}>{partner.name}</Text>
                     <Text style={styles.partnerOffer}>{partner.offer}</Text>
                   </TouchableOpacity>
                 );
@@ -349,47 +333,24 @@ const HomeScreen = () => {
         </View>
 
         {/* Story Modal */}
-        <Modal
-          visible={activeStoryIndex !== null}
-          animationType="fade"
-          transparent
-          onRequestClose={() => setActiveStoryIndex(null)}
-        >
+        <Modal visible={activeStoryIndex !== null} animationType="fade" transparent onRequestClose={() => setActiveStoryIndex(null)}>
           <View style={styles.storyModalBackdrop}>
             {activeStory && (
               <View style={styles.storyModalCard} {...panResponder.panHandlers}>
-                {/* Progress bar */}
                 <View style={styles.storyProgressBarBackground}>
-                  <View
-                    style={[
-                      styles.storyProgressBarFill,
-                      { width: `${storyProgress * 100}%` },
-                    ]}
-                  />
+                  <View style={[styles.storyProgressBarFill, { width: `${storyProgress * 100}%` }]} />
                 </View>
-
-                <Image source={{ uri: activeStory.image }} style={styles.storyImage} />
+                <TouchableOpacity style={StyleSheet.absoluteFill} onPress={handleNextStory} activeOpacity={1}>
+                  <Image source={typeof activeStory.image === 'string' ? { uri: activeStory.image } : activeStory.image} style={styles.storyImage} />
+                </TouchableOpacity>
                 <View style={styles.storyTextOverlay}>
                   <Text style={styles.storyTitle}>{activeStory.name}</Text>
-                  {STORY_DETAILS[activeStory.name]?.description ? (
-                    <Text style={styles.storyDescription}>
-                      {STORY_DETAILS[activeStory.name].description}
-                    </Text>
-                  ) : null}
-
+                  {STORY_DETAILS[activeStory.name]?.description && <Text style={styles.storyDescription}>{STORY_DETAILS[activeStory.name].description}</Text>}
                   <View style={styles.storyCtaRow}>
                     <Text style={styles.storyHintText}>Yukarı kaydır → Detay</Text>
-                    <TouchableOpacity
-                      style={styles.storyCtaButton}
-                      activeOpacity={0.9}
-                      onPress={handleStoryDetail}
-                    >
+                    <TouchableOpacity style={styles.storyCtaButton} activeOpacity={0.9} onPress={handleStoryDetail}>
                       <Text style={styles.storyCtaText}>
-                        {activeStory.name === 'Kültür Sanat' || activeStory.name === 'Gençlik'
-                          ? 'Etkinliklere Git'
-                          : activeStory.name === 'Ulaşım'
-                          ? 'Ulaşım Ekranına Git'
-                          : 'Detaya Git'}
+                        {activeStory.name === 'Kültür Sanat' || activeStory.name === 'Gençlik' ? 'Etkinliklere Git' : activeStory.name === 'Ulaşım' ? 'Ulaşım Ekranına Git' : 'Detaya Git'}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -398,7 +359,6 @@ const HomeScreen = () => {
             )}
           </View>
         </Modal>
-
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -409,9 +369,7 @@ const styles = StyleSheet.create({
     root: { flex: 1, backgroundColor: Colors.primary.violet },
     statusBarArea: { backgroundColor: Colors.primary.violet },
     container: { flex: 1, backgroundColor: Colors.lightGray },
-    dashboardInner: {
-      paddingBottom: 24,
-    },
+    dashboardInner: { paddingBottom: 24 },
     header: { borderBottomLeftRadius: 40, borderBottomRightRadius: 40, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 60 },
     headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     badge: { backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
@@ -422,35 +380,10 @@ const styles = StyleSheet.create({
     greetingSub: { fontSize: 16, color: 'rgba(255,255,255,0.85)', marginTop: 4 },
     headerNavContainer: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 20 },
     headerNavItem: { alignItems: 'center' },
-    storyBorder: {
-      width: 60,
-      height: 60,
-      borderRadius: 30,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    headerNavImage: { 
-      width: 54, 
-      height: 54, 
-      borderRadius: 27, 
-      borderWidth: 2, 
-      borderColor: '#43389F' // A dark color from the gradient to blend well
-    },
+    storyBorder: { width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center' },
+    headerNavImage: { width: 54, height: 54, borderRadius: 27, borderWidth: 2, borderColor: '#43389F' },
     headerNavText: { color: Colors.white, marginTop: 8, fontWeight: '600' },
-    statsCard: {
-        flexDirection: 'row',
-        backgroundColor: Colors.white,
-        borderRadius: 20,
-        marginHorizontal: 20,
-        marginTop: -50,
-        height: 100,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.1,
-        shadowRadius: 20,
-        elevation: 15,
-        alignItems: 'center',
-    },
+    statsCard: { flexDirection: 'row', backgroundColor: Colors.white, borderRadius: 20, marginHorizontal: 20, marginTop: -50, height: 100, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 15, alignItems: 'center' },
     statsLeft: { flex: 1, alignItems: 'center' },
     statsRight: { flex: 1, alignItems: 'center' },
     statsDivider: { width: 1, backgroundColor: '#e5e7eb', height: '60%' },
@@ -460,154 +393,39 @@ const styles = StyleSheet.create({
     sectionTitle: { fontSize: 14, fontWeight: 'bold', color: '#9ca3af', paddingHorizontal: 20, marginBottom: 15 },
     quickAccessContainer: { flexDirection: 'row', justifyContent: 'space-around', paddingHorizontal: 20 },
     quickAccessItem: { alignItems: 'center', flex: 1 },
-    quickAccessIcon: { 
-        width: 60, 
-        height: 60, 
-        borderRadius: 20, 
-        overflow: 'hidden', // Important for BlurView's corners
-        borderWidth: 1, // Hafif bir kenarlık ekleyelim
-        borderColor: 'rgba(255, 255, 255, 0.5)', // Kenarlık rengi
-    },
-    blurView: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    colorOverlay: {
-        ...StyleSheet.absoluteFillObject, // BlurView'ın tamamını kapla
-    },
+    quickAccessIcon: { width: 60, height: 60, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.5)' },
+    blurView: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    colorOverlay: { ...StyleSheet.absoluteFillObject },
     quickAccessText: { marginTop: 8, fontWeight: '600', color: Colors.darkGray },
-    partnersScrollContent: {
-      paddingHorizontal: 20,
-      paddingVertical: 4,
-    },
-    partnerCard: {
-      width: 170,
-      borderRadius: 20,
-      paddingHorizontal: 14,
-      paddingVertical: 14,
-      marginRight: 12,
-      justifyContent: 'space-between',
-    },
-    partnerIconWrapper: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      backgroundColor: 'rgba(255,255,255,0.9)',
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginBottom: 10,
-    },
-    partnerName: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: Colors.darkGray,
-      marginBottom: 4,
-    },
-    partnerOffer: {
-      fontSize: 13,
-      fontWeight: '500',
-      color: '#4b5563',
-    },
+    partnersScrollContent: { paddingHorizontal: 20, paddingVertical: 4 },
+    partnerCard: { width: 170, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 14, marginRight: 12, justifyContent: 'space-between' },
+    partnerIconWrapper: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.9)', justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
+    partnerName: { fontSize: 14, fontWeight: '600', color: Colors.darkGray, marginBottom: 4 },
+    partnerOffer: { fontSize: 13, fontWeight: '500', color: '#4b5563' },
     widgetsContainer: { flexDirection: 'row', paddingHorizontal: 20, marginTop: 12, justifyContent: 'space-between' },
+    // widgetCard styles (General shape)
     widgetCard: { borderRadius: 18, paddingHorizontal: 10, paddingVertical: 8, width: '48%', height: 70 },
     widgetLabel: { color: 'rgba(255,255,255,0.9)', fontWeight: '600', marginBottom: 4, fontSize: 10 },
+    // Weather card internals (Layout)
     weatherCard: { justifyContent: 'space-between', flexDirection: 'row', alignItems: 'center' },
     weatherTemp: { color: Colors.white, fontSize: 24, fontWeight: 'bold' },
-  weatherIconWrapper: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-    quoteCard: { 
-      backgroundColor: '#c7d2fe', // daha koyu mor ton
-      borderRadius: 18,
-      paddingHorizontal: 10,
-      paddingVertical: 8,
-      justifyContent: 'flex-start',
-    },
-    quoteHeaderRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-    },
+    weatherIconWrapper: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
+    quoteCard: { backgroundColor: '#c7d2fe', borderRadius: 18, paddingHorizontal: 10, paddingVertical: 8, justifyContent: 'flex-start' },
+    quoteHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     widgetLabelQuote: { color: Colors.primary.indigo },
     quoteText: { marginTop: 4, fontSize: 11, lineHeight: 15, fontWeight: '600', color: '#111827' },
-    storyModalBackdrop: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.6)',
-      justifyContent: 'center',
-      alignItems: 'center',
-      paddingHorizontal: 24,
-    },
-    storyModalCard: {
-      width: '100%',
-      maxWidth: 420,
-      aspectRatio: 9 / 16,
-      borderRadius: 26,
-      overflow: 'hidden',
-      backgroundColor: Colors.black,
-    },
-    storyProgressBarBackground: {
-      position: 'absolute',
-      top: 10,
-      left: 12,
-      right: 12,
-      height: 3,
-      borderRadius: 999,
-      backgroundColor: 'rgba(148,163,184,0.6)',
-      overflow: 'hidden',
-      zIndex: 2,
-    },
-    storyProgressBarFill: {
-      height: '100%',
-      backgroundColor: Colors.white,
-      borderRadius: 999,
-    },
-    storyImage: {
-      width: '100%',
-      height: '100%',
-      position: 'absolute',
-    },
-    storyTextOverlay: {
-      position: 'absolute',
-      left: 16,
-      right: 16,
-      bottom: 20,
-    },
-    storyTitle: {
-      fontSize: 18,
-      fontWeight: '700',
-      color: Colors.white,
-      marginBottom: 4,
-    },
-    storyDescription: {
-      fontSize: 14,
-      color: 'rgba(249,250,251,0.9)',
-    },
-    storyCtaRow: {
-      marginTop: 10,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-    },
-    storyHintText: {
-      fontSize: 11,
-      color: 'rgba(209,213,219,0.9)',
-    },
-    storyCtaButton: {
-      paddingHorizontal: 14,
-      paddingVertical: 6,
-      borderRadius: 999,
-      backgroundColor: 'rgba(79,70,229,0.9)',
-    },
-    storyCtaText: {
-      fontSize: 12,
-      fontWeight: '600',
-      color: Colors.white,
-    },
+    storyModalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 },
+    storyModalCard: { width: '100%', maxWidth: 420, aspectRatio: 9 / 16, borderRadius: 26, overflow: 'hidden', backgroundColor: Colors.black },
+    storyProgressBarBackground: { position: 'absolute', top: 10, left: 12, right: 12, height: 3, borderRadius: 999, backgroundColor: 'rgba(148,163,184,0.6)', overflow: 'hidden', zIndex: 2 },
+    storyProgressBarFill: { height: '100%', backgroundColor: Colors.white, borderRadius: 999 },
+    storyImage: { width: '100%', height: '100%', position: 'absolute' },
+    storyTextOverlay: { position: 'absolute', left: 16, right: 16, bottom: 20 },
+    storyTitle: { fontSize: 18, fontWeight: '700', color: Colors.white, marginBottom: 4 },
+    storyDescription: { fontSize: 14, color: 'rgba(249,250,251,0.9)' },
+    storyCtaRow: { marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    storyHintText: { fontSize: 11, color: 'rgba(209,213,219,0.9)' },
+    storyCtaButton: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(79,70,229,0.9)' },
+    storyCtaText: { fontSize: 12, fontWeight: '600', color: Colors.white },
 });
 
 export default HomeScreen;

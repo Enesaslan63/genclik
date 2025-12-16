@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/Colors';
 import { MOCK_PARTNERS } from '@/api/mockData';
@@ -41,6 +41,12 @@ const PartnerDetailScreen: React.FC<Props> = ({ route }) => {
           <Text style={styles.headerSubtitle}>Genç Kart'a özel fırsat</Text>
         </View>
 
+        {partner.imageUrl && (
+          <View style={styles.imageContainer}>
+            <Image source={{ uri: partner.imageUrl }} style={styles.partnerImage} />
+          </View>
+        )}
+
         <View style={styles.card}>
           <View style={[styles.iconContainer, { backgroundColor: partner.bgColor }]}>
             <Icon color={partner.iconColor} size={32} />
@@ -57,6 +63,22 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F7F8FA',
+  },
+  imageContainer: {
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderRadius: 24,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  partnerImage: {
+    width: '100%',
+    height: 200, // Ayarlanabilir yükseklik
+    resizeMode: 'cover',
   },
   header: {
     paddingHorizontal: 20,

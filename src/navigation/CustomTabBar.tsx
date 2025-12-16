@@ -83,6 +83,8 @@ const styles = StyleSheet.create({
   },
   iconFocused: {
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 30,
+    overflow: 'hidden',
   },
 });
 

@@ -15,6 +15,7 @@ import PartnerDetailScreen from '@/screens/PartnerDetailScreen';
 import WelcomeScreen from '@/screens/WelcomeScreen';
 import HeritageDetailScreen from '@/screens/HeritageDetailScreen';
 import NotificationsScreen from '@/screens/NotificationsScreen';
+import WeatherDetailScreen from '@/screens/WeatherDetailScreen'; // YENİ EKLENDİ
 
 // Custom Tab Bar
 import CustomTabBar from './CustomTabBar';
@@ -51,6 +52,7 @@ const AppNavigator = () => {
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
         <Stack.Screen name="PartnerDetail" component={PartnerDetailScreen} />
         <Stack.Screen name="HeritageDetail" component={HeritageDetailScreen} />
+        <Stack.Screen name="WeatherDetail" component={WeatherDetailScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

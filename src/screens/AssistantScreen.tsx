@@ -10,14 +10,29 @@ import {
   TouchableOpacity,
   ScrollView,
   Animated,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { SendHorizonal, Bot, MapPin, TicketPercent, Sparkles } from 'lucide-react-native';
+import { SendHorizonal, Bot, MapPin, TicketPercent, Sparkles, Activity } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '@/constants/Colors';
 import { MOCK_MESSAGES } from '@/api/mockData';
 import { ChatMessage } from '@/types';
 import { useThemeMode } from '@/context/ThemeContext';
+
+// 🔑 SENİN API ANAHTARIN
+const API_KEY = 'AIzaSyC7vGvSl-eDZl76wCP8ACLSgtLvXr1J4nA';
+
+// 🤖 [ÖNEMLİ] YAPAY ZEKANIN KURALLARI BURAYA YAZILIR
+// Burayı dilediğin gibi değiştirebilirsin.
+const SYSTEM_PROMPT = `
+Sen "ŞanlıAsistan" adında yardımcı bir yapay zekasın.
+GÖREVLERİN:
+1. Sadece Şanlıurfa şehri, otobüs saatleri, öğrenci indirimleri ve yerel etkinlikler hakkında bilgi vermek.
+2. Kullanıcı bu konuların DIŞINDA bir şey sorarsa (örneğin: matematik sorusu, yemek tarifi, siyaset, dünya gündemi vb.) kibarca "Ben sadece Şanlıurfa ve ulaşım konularında yardımcı olabilirim." diyerek reddetmek.
+3. Cevapların her zaman kısa, net ve samimi olsun.
+4. Asla kod yazma veya teknik konularda destek verme.
+`;
 
 const QUICK_ACTIONS = [
   {
@@ -103,26 +118,97 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ item }) => {
 const AssistantScreen = () => {
   const { mode } = useThemeMode();
   const isDark = mode === 'dark';
-  const [messages, setMessages] = useState<ChatMessage[]>(MOCK_MESSAGES.slice().reverse()); // reverse for inverted FlatList
+  const [messages, setMessages] = useState<ChatMessage[]>(MOCK_MESSAGES.slice().reverse());
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [typingDots, setTypingDots] = useState('.');
+  
+  const [activeModel, setActiveModel] = useState<string>('Model Aranıyor...');
   const flatListRef = useRef<FlatList>(null);
 
-  const getBotReply = (userText: string): string => {
-    const lower = userText.toLowerCase();
+  // --- MODEL SEÇİCİ ---
+  useEffect(() => {
+    const checkModels = async () => {
+      try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${API_KEY}`);
+        const data = await response.json();
 
-    if (lower.includes('otobüs') || lower.includes('ulaşım')) {
-      return 'Ulaşım ekranından sıradaki otobüsleri ve hat bilgilerini görebilirsin. Yakında canlı konum ve durak bazlı arama da eklenecek.';
-    }
-    if (lower.includes('indirim') || lower.includes('genç kart')) {
-      return 'Genç Kart indirimleri için ana sayfadaki “Genç Kart indirimleri” şeridine göz at. Kahve, sinema ve daha birçok mekânda avantajın var.';
-    }
-    if (lower.includes('etkinlik') || lower.includes('festival')) {
-      return 'Etkinlikler ekranında konser, gezi ve spor etkinliklerini tarih ve kategoriye göre inceleyebilirsin.';
+        if (data.models) {
+          const chatModels = data.models
+            .filter((m: any) => m.supportedGenerationMethods.includes("generateContent"))
+            .map((m: any) => m.name.replace("models/", ""));
+
+          console.log("Mevcut Modeller:", chatModels);
+          
+          // Ücretsiz ve güvenilir modelleri önceliklendir
+          const safeModel = chatModels.find((m:string) => m.includes("gemini-1.5-flash") && !m.includes("2.5")) || 
+                            chatModels.find((m:string) => m.includes("flash")) ||
+                            chatModels.find((m:string) => m.includes("gemini-pro") && !m.includes("vision")) ||
+                            chatModels[0];
+          
+          if (safeModel) {
+            console.log("✅ SEÇİLEN MODEL:", safeModel);
+            setActiveModel(safeModel);
+          } else {
+            setActiveModel(chatModels[0]); 
+          }
+
+        } else if (data.error) {
+           console.error("API Error", data.error);
+           setActiveModel("Hata");
+        }
+      } catch (error) {
+        console.error(error);
+        setActiveModel("Bağlantı Hatası");
+      }
+    };
+
+    checkModels();
+  }, []);
+
+
+  const getGeminiReply = async (userText: string): Promise<string> => {
+    if (activeModel === 'Model Aranıyor...' || activeModel === 'Hata') {
+      return "Model bulunamadı. Lütfen bekleyin...";
     }
 
-    return 'Şu an seni mock verilerle yönlendiriyorum. Yakında gerçek zamanlı asistanla çok daha detaylı cevaplar verebileceğim.';
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${activeModel}:generateContent?key=${API_KEY}`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          // 👇 BURASI YENİ EKLENDİ: SİSTEM TALİMATI
+          systemInstruction: {
+            parts: [
+              { text: SYSTEM_PROMPT }
+            ]
+          },
+          // ----------------------------------------
+          contents: [{ parts: [{ text: userText }] }]
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.error) {
+        console.error("Gemini API Error:", data.error);
+        if (data.error.code === 429) {
+            return `Yoğunluk var, lütfen 30 saniye sonra tekrar dene.`;
+        }
+        return `Bir hata oluştu.`;
+      }
+
+      if (data.candidates && data.candidates.length > 0 && data.candidates[0].content) {
+         return data.candidates[0].content.parts[0].text;
+      } else {
+         return "Cevap alınamadı.";
+      }
+
+    } catch (error) {
+      return "İnternet bağlantısında sorun var.";
+    }
   };
 
   const sendUserMessage = (text: string) => {
@@ -141,23 +227,25 @@ const AssistantScreen = () => {
     setIsTyping(true);
     flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
 
-    setTimeout(() => {
+    const fetchBotReply = async () => {
+      const geminiReply = await getGeminiReply(trimmed);
       const botMessage: ChatMessage = {
         id: `${Date.now()}-bot`,
         sender: 'bot',
-        text: getBotReply(trimmed),
+        text: geminiReply,
         timestamp: '',
       };
       setMessages(prev => [botMessage, ...prev]);
       setIsTyping(false);
-    }, TYPING_DELAY_MS);
+    };
+
+    setTimeout(fetchBotReply, TYPING_DELAY_MS);
   };
 
   const renderMessageItem = ({ item }: { item: ChatMessage }) => (
     <MessageBubble item={item} />
   );
 
-  // typing dots animation
   useEffect(() => {
     if (!isTyping) {
       setTypingDots('.');
@@ -183,12 +271,17 @@ const AssistantScreen = () => {
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.keyboardAvoidingView}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0} // Adjusted for the tab bar
+          keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 25}
         >
           {/* Header */}
           <View style={styles.header}>
               <Text style={styles.headerTitle}>ŞanlıAsistan</Text>
-              <Text style={styles.headerSubtitle}>Sana nasıl yardımcı olabilirim?</Text>
+              <View style={{flexDirection: 'row', alignItems: 'center', gap: 5}}>
+                 <Activity size={14} color="green" />
+                 <Text style={styles.headerSubtitle}>
+                    {activeModel === 'Model Aranıyor...' ? 'Aranıyor...' : `${activeModel}`}
+                 </Text>
+              </View>
           </View>
           
           {/* Quick Start Suggestions */}
@@ -280,9 +373,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'white',
     marginHorizontal: 10,
-    marginBottom: 95, // Critical: Lifts the page above the tab bar
+    marginBottom: 95, 
     borderRadius: 30,
-    overflow: 'hidden', // Ensures children conform to the bubble shape
+    overflow: 'hidden', 
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -297,7 +390,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 20,
-    paddingTop: 20, // Increased top padding
+    paddingTop: 20,
     paddingBottom: 15,
   },
   headerTitle: {
@@ -306,9 +399,10 @@ const styles = StyleSheet.create({
     color: Colors.darkGray,
   },
   headerSubtitle: {
-      fontSize: 16,
+      fontSize: 14,
       color: '#6b7280',
       marginTop: 2,
+      fontWeight: '600'
   },
   quickStartContainer: {
     paddingHorizontal: 20,
@@ -316,7 +410,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   quickStartChip: {
-    backgroundColor: Colors.lightGray, // Changed color to match background
+    backgroundColor: Colors.lightGray,
     paddingHorizontal: 15,
     paddingVertical: 10,
     borderRadius: 20,
@@ -333,7 +427,7 @@ const styles = StyleSheet.create({
   chatContainer: {
     paddingHorizontal: 15,
     flexGrow: 1,
-    paddingBottom: 10, // Reset this
+    paddingBottom: 10,
   },
   bubbleContainer: {
     marginVertical: 10,
@@ -364,7 +458,7 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 5,
   },
   botBubble: {
-    backgroundColor: Colors.lightGray, // Bot bubble color changed
+    backgroundColor: Colors.lightGray,
     borderBottomLeftRadius: 5,
   },
   userBubbleText: {
@@ -388,16 +482,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 10,
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6', // Lighter border
+    borderTopColor: '#f3f4f6',
   },
   input: {
     flex: 1,
     height: 50,
-    backgroundColor: Colors.lightGray, // Changed input color
+    backgroundColor: Colors.lightGray,
     borderRadius: 25,
     paddingHorizontal: 20,
     fontSize: 16,
-    borderWidth: 0, // Removed border
+    borderWidth: 0,
     marginRight: 10,
   },
   sendButton: {

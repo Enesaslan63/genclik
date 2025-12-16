@@ -20,6 +20,7 @@ export type RootStackParamList = {
   Rewards: undefined;
   Notifications: undefined;
   PartnerDetail: { partnerId: string };
+  WeatherDetail: { weatherData: any }; // YENİ EKLENDİ
    HeritageDetail: { id: string };
 };
 

@@ -23,11 +23,12 @@ export interface Bus {
 export interface DiscountPartner {
   id: string;
   name: string;
-  offer: string;
-  description: string;
-  icon: any; // Using 'any' for Lucide icons
+  icon: React.ComponentType<LucideIconProps>;
   iconColor: string;
   bgColor: string;
+  offer: string;
+  description: string;
+  imageUrl?: string; // Add this line
   url: string;
 }
 

@@ -1,5 +1,5 @@
 import { User, Story, Bus, DiscountPartner, ChatMessage, Event, Magazine, Bulletin, Reward, PointsHistory, NotificationItem } from '@/types';
-import { Coffee, Utensils, Film } from 'lucide-react-native';
+import { Coffee, Utensils, Film, Book } from 'lucide-react-native';
 
 export const MOCK_USER: User = {
   name: 'Mert',
@@ -25,7 +25,17 @@ export const MOCK_BUSES: Bus[] = [
 ];
 
 export const MOCK_PARTNERS: DiscountPartner[] = [
-    { id: '1', name: 'Mırra Kahve Evi', offer: '%20 İndirim', description: 'Tüm kahve çeşitlerinde', icon: Coffee, url: '#', bgColor: '#ffedd5', iconColor: '#f97316' },
+    {
+      id: '1',
+      name: 'Mırra Kahve Evi',
+      offer: '%20 İndirim',
+      description: 'Tüm kahve çeşitlerinde geçerli %20 indirim fırsatı!',
+      imageUrl: 'https://via.placeholder.com/400x200?text=Mirra+Kahve+Evi',
+      url: 'https://mirrakahveevi.com',
+      bgColor: '#ffedd5',
+      iconColor: '#f97316',
+      icon: Coffee,
+    },
     { id: '2', name: 'Meşhur Ciğerci', offer: 'Ayran İkramı', description: 'Porsiyon ciğer siparişine', icon: Utensils, url: '#', bgColor: '#fee2e2', iconColor: '#ef4444' },
     { id: '3', name: 'Piazza AVM Sinema', offer: 'Genç Bileti', description: 'Hafta içi seanslarda', icon: Film, url: '#', bgColor: '#e0e7ff', iconColor: '#4f46e5' },
 ];
