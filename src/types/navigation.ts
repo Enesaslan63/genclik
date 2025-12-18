@@ -14,13 +14,14 @@ export type MainTabParamList = {
 // Ana Stack Navigasyonun Ekranları
 export type RootStackParamList = {
   Welcome: undefined;
+  Login: undefined;
   Main: NavigatorScreenParams<MainTabParamList>; // Tab menüsünü bir ekran olarak içerir
   Events: undefined;
   Magazine: undefined;
   Rewards: undefined;
   Notifications: undefined;
   PartnerDetail: { partnerId: string };
-  WeatherDetail: { weatherData: any }; // YENİ EKLENDİ
+  WeatherDetail: { weatherData?: any; forecastData?: any; airQualityData?: any };
    HeritageDetail: { id: string };
 };
 

@@ -16,6 +16,7 @@ import WelcomeScreen from '@/screens/WelcomeScreen';
 import HeritageDetailScreen from '@/screens/HeritageDetailScreen';
 import NotificationsScreen from '@/screens/NotificationsScreen';
 import WeatherDetailScreen from '@/screens/WeatherDetailScreen'; // YENİ EKLENDİ
+import LoginScreen from '@/screens/LoginScreen';
 
 // Custom Tab Bar
 import CustomTabBar from './CustomTabBar';
@@ -42,9 +43,10 @@ const AppNavigator = () => {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName="Welcome"
+        initialRouteName="Login"
         screenOptions={{ headerShown: false }}
       >
+        <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="Welcome" component={WelcomeScreen} />
         <Stack.Screen name="Main" component={MainTabs} />
         <Stack.Screen name="Events" component={EventsScreen} />

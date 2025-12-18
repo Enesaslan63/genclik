@@ -21,7 +21,7 @@ import {
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Colors } from '@/constants/Colors';
-import { MOCK_BUSES, MOCK_PARTNERS } from '@/api/mockData';
+import { MOCK_BUSES, MOCK_PARTNERS, MOCK_EVENTS } from '@/api/mockData';
 import { HomeScreenProps, MainTabParamList } from '@/types/navigation';
 import { useThemeMode } from '@/context/ThemeContext';
 import MustafaImage from '../assets/images/mustafa.jpg';
@@ -72,6 +72,60 @@ const HomeScreen = () => {
   const MONTHS = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
   const DAYS = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
   
+  // Türkiye'deki Özel Günler (ay-gün formatında)
+  const SPECIAL_DAYS: { [key: string]: { name: string; emoji: string; color: string; type: 'holiday' | 'memorial' | 'special' } } = {
+    // Resmi Tatiller
+    '1-1': { name: 'Yılbaşı', emoji: '🎉', color: '#f59e0b', type: 'holiday' },
+    '4-23': { name: 'Ulusal Egemenlik ve Çocuk Bayramı', emoji: '🇹🇷', color: '#ef4444', type: 'holiday' },
+    '5-1': { name: 'Emek ve Dayanışma Günü', emoji: '💪', color: '#ef4444', type: 'holiday' },
+    '5-19': { name: 'Atatürk\'ü Anma, Gençlik ve Spor Bayramı', emoji: '🏃', color: '#ef4444', type: 'holiday' },
+    '7-15': { name: 'Demokrasi ve Milli Birlik Günü', emoji: '🕊️', color: '#ef4444', type: 'holiday' },
+    '8-30': { name: 'Zafer Bayramı', emoji: '🏆', color: '#ef4444', type: 'holiday' },
+    '10-29': { name: 'Cumhuriyet Bayramı', emoji: '🇹🇷', color: '#ef4444', type: 'holiday' },
+    // Anma Günleri
+    '3-18': { name: 'Çanakkale Zaferi', emoji: '⭐', color: '#dc2626', type: 'memorial' },
+    '11-10': { name: 'Atatürk\'ü Anma Günü', emoji: '🖤', color: '#1f2937', type: 'memorial' },
+    // Özel Günler
+    '2-14': { name: 'Sevgililer Günü', emoji: '❤️', color: '#ec4899', type: 'special' },
+    '3-8': { name: 'Dünya Kadınlar Günü', emoji: '👩', color: '#a855f7', type: 'special' },
+    '3-21': { name: 'Nevruz', emoji: '🌸', color: '#22c55e', type: 'special' },
+    '11-24': { name: 'Öğretmenler Günü', emoji: '📚', color: '#6366f1', type: 'special' },
+    '12-31': { name: 'Yılbaşı Gecesi', emoji: '🎊', color: '#f59e0b', type: 'special' },
+    // 2026 Dini Günler ve Kandiller (Tahmini)
+    '2-19': { name: 'Ramazan Başlangıcı', emoji: '🌙', color: '#10b981', type: 'special' },
+    '3-16': { name: 'Kadir Gecesi', emoji: '📿', color: '#10b981', type: 'special' },
+    '3-19': { name: 'Ramazan Bayramı Arifesi', emoji: '🍬', color: '#10b981', type: 'special' },
+    '3-20': { name: 'Ramazan Bayramı 1. Gün', emoji: '🍬', color: '#10b981', type: 'holiday' },
+    '3-21-RELIGIOUS': { name: 'Ramazan Bayramı 2. Gün', emoji: '🍬', color: '#10b981', type: 'holiday' }, 
+    '3-22': { name: 'Ramazan Bayramı 3. Gün', emoji: '🍬', color: '#10b981', type: 'holiday' },
+    '5-26': { name: 'Kurban Bayramı Arifesi', emoji: '🐑', color: '#10b981', type: 'special' },
+    '5-27': { name: 'Kurban Bayramı 1. Gün', emoji: '🐑', color: '#10b981', type: 'holiday' },
+    '5-28': { name: 'Kurban Bayramı 2. Gün', emoji: '🐑', color: '#10b981', type: 'holiday' },
+    '5-29': { name: 'Kurban Bayramı 3. Gün', emoji: '🐑', color: '#10b981', type: 'holiday' },
+    '5-30': { name: 'Kurban Bayramı 4. Gün', emoji: '🐑', color: '#10b981', type: 'holiday' },
+  };
+
+  // Özel gün ve etkinlik kontrolü
+  const getDayContent = (day: number, month: number) => {
+    const key = `${month + 1}-${day}`;
+    let specialDay = SPECIAL_DAYS[key] || null;
+    
+    // 21 Mart çakışması için özel kontrol
+    if (key === '3-21') {
+      specialDay = SPECIAL_DAYS['3-21-RELIGIOUS'] || SPECIAL_DAYS['3-21'];
+    }
+
+    // Etkinlik kontrolü
+    const monthNames = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+    const dateStr = `${day} ${monthNames[month]}`;
+    const dailyEvents = MOCK_EVENTS.filter(e => e.date === dateStr);
+
+    return { specialDay, dailyEvents };
+  };
+
+  // Seçili gün state'i
+  const [selectedDay, setSelectedDay] = useState<{ day: number; specialDay: any; events: any[] } | null>(null);
+  
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
     const month = date.getMonth();
@@ -101,24 +155,32 @@ const HomeScreen = () => {
 
   // --- HAVA DURUMU KISMI ---
   const [weatherData, setWeatherData] = useState<any>(null);
+  const [forecastData, setForecastData] = useState<any>(null);
+  const [airQualityData, setAirQualityData] = useState<any>(null);
   const API_KEY = "86c0bfac95367500f94f82e107ad2332"; 
   const SEHIR_KOORDINAT = { lat: 37.1674, lon: 38.7955 };
 
   useEffect(() => {
-    fetchWeather();
+    fetchAllWeatherData();
   }, []);
 
-  const fetchWeather = async () => {
+  const fetchAllWeatherData = async () => {
     try {
-      const response = await fetch(
-        `https://api.openweathermap.org/data/2.5/weather?lat=${SEHIR_KOORDINAT.lat}&lon=${SEHIR_KOORDINAT.lon}&units=metric&lang=tr&appid=${API_KEY}`
-      );
-      const data = await response.json();
-      if (data.cod !== 200) {
-          console.log("Hava durumu API hatası:", data.message);
-      } else {
-          setWeatherData(data);
-      }
+      // Paralel olarak tüm API'leri çağır
+      const [weatherRes, forecastRes, airRes] = await Promise.all([
+        fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${SEHIR_KOORDINAT.lat}&lon=${SEHIR_KOORDINAT.lon}&units=metric&lang=tr&appid=${API_KEY}`),
+        fetch(`https://api.openweathermap.org/data/2.5/forecast?lat=${SEHIR_KOORDINAT.lat}&lon=${SEHIR_KOORDINAT.lon}&units=metric&lang=tr&appid=${API_KEY}`),
+        fetch(`https://api.openweathermap.org/data/2.5/air_pollution?lat=${SEHIR_KOORDINAT.lat}&lon=${SEHIR_KOORDINAT.lon}&appid=${API_KEY}`)
+      ]);
+
+      const weatherJson = await weatherRes.json();
+      const forecastJson = await forecastRes.json();
+      const airJson = await airRes.json();
+
+      if (weatherJson.cod === 200) setWeatherData(weatherJson);
+      if (forecastJson.cod === "200") setForecastData(forecastJson);
+      if (airJson.list) setAirQualityData(airJson);
+      
     } catch (error) {
       console.log("Hava durumu hatası:", error);
     }
@@ -137,11 +199,11 @@ const HomeScreen = () => {
   };
 
   const handleWeatherDetail = () => {
-    if (weatherData) {
-      navigation.navigate('WeatherDetail', { weatherData });
-    } else {
-      navigation.navigate('WeatherDetail');
-    }
+    navigation.navigate('WeatherDetail', { 
+      weatherData: weatherData || undefined,
+      forecastData: forecastData || undefined,
+      airQualityData: airQualityData || undefined,
+    });
   };
 
   const activeStory = activeStoryIndex !== null ? HEADER_NAV[activeStoryIndex] : null;
@@ -402,121 +464,233 @@ const HomeScreen = () => {
                 </TouchableOpacity>
               </View>
 
-              {/* View Toggle */}
-              <View style={[styles.calendarToggle, isDark && { backgroundColor: '#0f172a' }]}>
-                <TouchableOpacity
-                  style={[styles.calendarToggleBtn, calendarView === 'month' && styles.calendarToggleBtnActive]}
-                  onPress={() => setCalendarView('month')}
-                >
-                  <Text style={[styles.calendarToggleText, calendarView === 'month' && styles.calendarToggleTextActive, isDark && calendarView !== 'month' && { color: '#94a3b8' }]}>Aylık</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.calendarToggleBtn, calendarView === 'year' && styles.calendarToggleBtnActive]}
-                  onPress={() => setCalendarView('year')}
-                >
-                  <Text style={[styles.calendarToggleText, calendarView === 'year' && styles.calendarToggleTextActive, isDark && calendarView !== 'year' && { color: '#94a3b8' }]}>Yıllık</Text>
-                </TouchableOpacity>
-              </View>
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+                {/* View Toggle */}
+                <View style={[styles.calendarToggle, isDark && { backgroundColor: '#0f172a' }]}>
+                  <TouchableOpacity
+                    style={[styles.calendarToggleBtn, calendarView === 'month' && styles.calendarToggleBtnActive]}
+                    onPress={() => setCalendarView('month')}
+                  >
+                    <Text style={[styles.calendarToggleText, calendarView === 'month' && styles.calendarToggleTextActive, isDark && calendarView !== 'month' && { color: '#94a3b8' }]}>Aylık</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.calendarToggleBtn, calendarView === 'year' && styles.calendarToggleBtnActive]}
+                    onPress={() => setCalendarView('year')}
+                  >
+                    <Text style={[styles.calendarToggleText, calendarView === 'year' && styles.calendarToggleTextActive, isDark && calendarView !== 'year' && { color: '#94a3b8' }]}>Yıllık</Text>
+                  </TouchableOpacity>
+                </View>
 
-              {/* Month View */}
-              {calendarView === 'month' && (
-                <View style={styles.calendarContent}>
-                  <View style={styles.calendarNavRow}>
-                    <TouchableOpacity onPress={() => changeMonth(-1)} style={styles.calendarNavBtn}>
-                      <ChevronLeft color={isDark ? '#94a3b8' : '#6b7280'} size={24} />
-                    </TouchableOpacity>
-                    <Text style={[styles.calendarMonthText, isDark && { color: '#f8fafc' }]}>
-                      {MONTHS[selectedDate.getMonth()]} {selectedDate.getFullYear()}
-                    </Text>
-                    <TouchableOpacity onPress={() => changeMonth(1)} style={styles.calendarNavBtn}>
-                      <ChevronRight color={isDark ? '#94a3b8' : '#6b7280'} size={24} />
-                    </TouchableOpacity>
-                  </View>
+                {/* Month View */}
+                {calendarView === 'month' && (
+                  <View style={styles.calendarContent}>
+                    <View style={styles.calendarNavRow}>
+                      <TouchableOpacity onPress={() => changeMonth(-1)} style={styles.calendarNavBtn}>
+                        <ChevronLeft color={isDark ? '#94a3b8' : '#6b7280'} size={24} />
+                      </TouchableOpacity>
+                      <Text style={[styles.calendarMonthText, isDark && { color: '#f8fafc' }]}>
+                        {MONTHS[selectedDate.getMonth()]} {selectedDate.getFullYear()}
+                      </Text>
+                      <TouchableOpacity onPress={() => changeMonth(1)} style={styles.calendarNavBtn}>
+                        <ChevronRight color={isDark ? '#94a3b8' : '#6b7280'} size={24} />
+                      </TouchableOpacity>
+                    </View>
 
-                  <View style={styles.calendarDaysHeader}>
-                    {DAYS.map((day) => (
-                      <Text key={day} style={[styles.calendarDayName, isDark && { color: '#94a3b8' }]}>{day}</Text>
-                    ))}
-                  </View>
+                    <View style={styles.calendarDaysHeader}>
+                      {DAYS.map((day) => (
+                        <Text key={day} style={[styles.calendarDayName, isDark && { color: '#94a3b8' }]}>{day}</Text>
+                      ))}
+                    </View>
 
-                  <View style={styles.calendarGrid}>
-                    {getDaysInMonth(selectedDate).map((day, index) => {
-                      const isToday = day === new Date().getDate() && 
-                        selectedDate.getMonth() === new Date().getMonth() && 
-                        selectedDate.getFullYear() === new Date().getFullYear();
-                      return (
-                        <View key={index} style={styles.calendarDayCell}>
-                          {day && (
-                            <View style={[styles.calendarDay, isToday && styles.calendarDayToday]}>
-                              <Text style={[styles.calendarDayText, isToday && styles.calendarDayTextToday, isDark && !isToday && { color: '#f8fafc' }]}>
-                                {day}
+                    <View style={styles.calendarGrid}>
+                      {getDaysInMonth(selectedDate).map((day, index) => {
+                        const isToday = day === new Date().getDate() && 
+                          selectedDate.getMonth() === new Date().getMonth() && 
+                          selectedDate.getFullYear() === new Date().getFullYear();
+                        
+                        const { specialDay, dailyEvents } = day ? getDayContent(day, selectedDate.getMonth()) : { specialDay: null, dailyEvents: [] };
+                        const hasContent = specialDay || dailyEvents.length > 0;
+
+                        return (
+                          <TouchableOpacity 
+                            key={index} 
+                            style={styles.calendarDayCell}
+                            onPress={() => day && hasContent && setSelectedDay({ day, specialDay, events: dailyEvents })}
+                            activeOpacity={hasContent ? 0.7 : 1}
+                          >
+                            {day && (
+                              <View style={[
+                                styles.calendarDay, 
+                                isToday && styles.calendarDayToday,
+                                specialDay && !isToday && { backgroundColor: specialDay.color + '20', borderWidth: 1.5, borderColor: specialDay.color },
+                                !specialDay && dailyEvents.length > 0 && !isToday && { backgroundColor: Colors.primary.indigo + '15', borderWidth: 1, borderColor: Colors.primary.indigo, borderStyle: 'dashed' }
+                              ]}>
+                                <Text style={[
+                                  styles.calendarDayText, 
+                                  isToday && styles.calendarDayTextToday, 
+                                  isDark && !isToday && { color: '#f8fafc' },
+                                  specialDay && !isToday && { color: specialDay.color, fontWeight: 'bold' },
+                                  !specialDay && dailyEvents.length > 0 && !isToday && { color: Colors.primary.indigo }
+                                ]}>
+                                  {day}
+                                </Text>
+                                <View style={styles.indicatorContainer}>
+                                  {specialDay && <Text style={styles.specialDayEmojiMini}>{specialDay.emoji}</Text>}
+                                  {dailyEvents.length > 0 && <View style={styles.eventDot} />}
+                                </View>
+                              </View>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    {/* Seçili Gün Detayı (Özel Gün veya Etkinlik) */}
+                    {selectedDay && (
+                      <View style={styles.selectedDayDetailContainer}>
+                        {selectedDay.specialDay && (
+                          <TouchableOpacity 
+                            style={[styles.specialDayCard, { backgroundColor: selectedDay.specialDay.color + '15', borderColor: selectedDay.specialDay.color }]}
+                            onPress={() => setSelectedDay(null)}
+                            activeOpacity={0.9}
+                          >
+                            <View style={styles.specialDayCardHeader}>
+                              <Text style={styles.specialDayCardEmoji}>{selectedDay.specialDay.emoji}</Text>
+                              <View style={{ flex: 1 }}>
+                                <Text style={[styles.specialDayCardTitle, { color: selectedDay.specialDay.color }]}>
+                                  {selectedDay.specialDay.name}
+                                </Text>
+                                <Text style={[styles.specialDayCardDate, isDark && { color: '#94a3b8' }]}>
+                                  {selectedDay.day} {MONTHS[selectedDate.getMonth()]} {selectedDate.getFullYear()}
+                                </Text>
+                              </View>
+                            </View>
+                          </TouchableOpacity>
+                        )}
+
+                        {selectedDay.events.map((event, idx) => (
+                          <TouchableOpacity 
+                            key={idx}
+                            style={[styles.eventDetailCard, isDark && { backgroundColor: '#334155' }]}
+                            onPress={() => {
+                                setCalendarVisible(false);
+                                navigation.navigate('Events');
+                            }}
+                          >
+                            <View style={styles.eventDetailIcon}>
+                                <Calendar color={Colors.primary.indigo} size={20} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={[styles.eventDetailTitle, isDark && { color: '#f8fafc' }]}>{event.title}</Text>
+                                <Text style={styles.eventDetailLocation}>{event.location} • {event.category}</Text>
+                            </View>
+                            <ChevronRight color="#94a3b8" size={20} />
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+
+                    {/* Bu Aydaki Özel Günler Listesi */}
+                    <View style={styles.specialDaysSection}>
+                      <Text style={[styles.specialDaysSectionTitle, isDark && { color: '#f8fafc' }]}>
+                        Bu Aydaki Özel Günler
+                      </Text>
+                      {(() => {
+                        const monthSpecialDays = Object.entries(SPECIAL_DAYS)
+                          .filter(([key]) => {
+                            const [month] = key.split('-').map(Number);
+                            return month === selectedDate.getMonth() + 1;
+                          })
+                          .sort((a, b) => {
+                            const dayA = parseInt(a[0].split('-')[1]);
+                            const dayB = parseInt(b[0].split('-')[1]);
+                            return dayA - dayB;
+                          });
+                        
+                        if (monthSpecialDays.length === 0) {
+                          return (
+                            <Text style={[styles.noSpecialDays, isDark && { color: '#64748b' }]}>
+                              Bu ayda özel gün bulunmuyor
+                            </Text>
+                          );
+                        }
+                        
+                        return monthSpecialDays.map(([key, value]) => {
+                          const day = key.split('-')[1];
+                          return (
+                            <View key={key} style={[styles.specialDayRow, isDark && { backgroundColor: '#1e293b' }]}>
+                              <View style={[styles.specialDayDot, { backgroundColor: value.color }]} />
+                              <Text style={styles.specialDayRowEmoji}>{value.emoji}</Text>
+                              <Text style={[styles.specialDayRowDate, isDark && { color: '#94a3b8' }]}>{day}</Text>
+                              <Text style={[styles.specialDayRowName, isDark && { color: '#f8fafc' }]} numberOfLines={1}>
+                                {value.name}
                               </Text>
                             </View>
-                          )}
-                        </View>
-                      );
-                    })}
+                          );
+                        });
+                      })()}
+                    </View>
                   </View>
-                </View>
-              )}
+                )}
 
-              {/* Year View */}
-              {calendarView === 'year' && (
-                <View style={styles.calendarContent}>
-                  <View style={styles.calendarNavRow}>
-                    <TouchableOpacity onPress={() => changeYear(-1)} style={styles.calendarNavBtn}>
-                      <ChevronLeft color={isDark ? '#94a3b8' : '#6b7280'} size={24} />
-                    </TouchableOpacity>
-                    <Text style={[styles.calendarYearText, isDark && { color: '#f8fafc' }]}>
-                      {selectedDate.getFullYear()}
-                    </Text>
-                    <TouchableOpacity onPress={() => changeYear(1)} style={styles.calendarNavBtn}>
-                      <ChevronRight color={isDark ? '#94a3b8' : '#6b7280'} size={24} />
-                    </TouchableOpacity>
+                {/* Year View */}
+                {calendarView === 'year' && (
+                  <View style={styles.calendarContent}>
+                    <View style={styles.calendarNavRow}>
+                      <TouchableOpacity onPress={() => changeYear(-1)} style={styles.calendarNavBtn}>
+                        <ChevronLeft color={isDark ? '#94a3b8' : '#6b7280'} size={24} />
+                      </TouchableOpacity>
+                      <Text style={[styles.calendarYearText, isDark && { color: '#f8fafc' }]}>
+                        {selectedDate.getFullYear()}
+                      </Text>
+                      <TouchableOpacity onPress={() => changeYear(1)} style={styles.calendarNavBtn}>
+                        <ChevronRight color={isDark ? '#94a3b8' : '#6b7280'} size={24} />
+                      </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.calendarMonthsGrid}>
+                      {MONTHS.map((month, index) => {
+                        const isCurrentMonth = index === new Date().getMonth() && selectedDate.getFullYear() === new Date().getFullYear();
+                        return (
+                          <TouchableOpacity
+                            key={month}
+                            style={[
+                              styles.calendarMonthCell, 
+                              isCurrentMonth && styles.calendarMonthCellActive,
+                              isDark && !isCurrentMonth && { backgroundColor: '#334155' }
+                            ]}
+                            onPress={() => {
+                              const newDate = new Date(selectedDate);
+                              newDate.setMonth(index);
+                              setSelectedDate(newDate);
+                              setCalendarView('month');
+                            }}
+                          >
+                            <Text style={[
+                              styles.calendarMonthName, 
+                              isCurrentMonth && styles.calendarMonthNameActive, 
+                              isDark && !isCurrentMonth && { color: '#f8fafc' }
+                            ]}>
+                              {month.slice(0, 3)}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
                   </View>
+                )}
 
-                  <View style={styles.calendarMonthsGrid}>
-                    {MONTHS.map((month, index) => {
-                      const isCurrentMonth = index === new Date().getMonth() && selectedDate.getFullYear() === new Date().getFullYear();
-                      return (
-                        <TouchableOpacity
-                          key={month}
-                          style={[
-                            styles.calendarMonthCell, 
-                            isCurrentMonth && styles.calendarMonthCellActive,
-                            isDark && !isCurrentMonth && { backgroundColor: '#334155' }
-                          ]}
-                          onPress={() => {
-                            const newDate = new Date(selectedDate);
-                            newDate.setMonth(index);
-                            setSelectedDate(newDate);
-                            setCalendarView('month');
-                          }}
-                        >
-                          <Text style={[
-                            styles.calendarMonthName, 
-                            isCurrentMonth && styles.calendarMonthNameActive, 
-                            isDark && !isCurrentMonth && { color: '#f8fafc' }
-                          ]}>
-                            {month.slice(0, 3)}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </View>
-              )}
-
-              {/* Go to Events Button */}
-              <TouchableOpacity
-                style={styles.calendarEventsBtn}
-                onPress={() => {
-                  setCalendarVisible(false);
-                  navigation.navigate('Events');
-                }}
-              >
-                <Text style={styles.calendarEventsBtnText}>Etkinliklere Git</Text>
-              </TouchableOpacity>
+                {/* Go to Events Button */}
+                <TouchableOpacity
+                  style={styles.calendarEventsBtn}
+                  onPress={() => {
+                    setCalendarVisible(false);
+                    navigation.navigate('Events');
+                  }}
+                >
+                  <Text style={styles.calendarEventsBtnText}>Etkinliklere Git</Text>
+                </TouchableOpacity>
+              </ScrollView>
             </View>
           </View>
         </Modal>
@@ -595,7 +769,7 @@ const styles = StyleSheet.create({
     storyCtaText: { fontSize: 12, fontWeight: '600', color: Colors.white },
     // Calendar Modal Styles
     calendarModalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-    calendarModalCard: { backgroundColor: Colors.white, borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 20, paddingBottom: 40 },
+    calendarModalCard: { backgroundColor: Colors.white, borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 20, height: '80%' },
     calendarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
     calendarTitle: { fontSize: 20, fontWeight: 'bold', color: Colors.darkGray },
     calendarCloseBtn: { padding: 8 },
@@ -612,7 +786,7 @@ const styles = StyleSheet.create({
     calendarDaysHeader: { flexDirection: 'row', marginBottom: 10 },
     calendarDayName: { flex: 1, textAlign: 'center', fontSize: 12, fontWeight: '600', color: '#9ca3af' },
     calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-    calendarDayCell: { width: '14.28%', aspectRatio: 1, justifyContent: 'center', alignItems: 'center' },
+    calendarDayCell: { width: '14.28%', aspectRatio: 1, justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
     calendarDay: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
     calendarDayToday: { backgroundColor: Colors.primary.indigo },
     calendarDayText: { fontSize: 14, fontWeight: '500', color: Colors.darkGray },
@@ -622,8 +796,34 @@ const styles = StyleSheet.create({
     calendarMonthCellActive: { backgroundColor: Colors.primary.indigo },
     calendarMonthName: { fontSize: 16, fontWeight: '600', color: Colors.darkGray },
     calendarMonthNameActive: { color: Colors.white },
-    calendarEventsBtn: { backgroundColor: Colors.primary.indigo, paddingVertical: 16, borderRadius: 16, alignItems: 'center' },
+    calendarEventsBtn: { backgroundColor: Colors.primary.indigo, paddingVertical: 16, borderRadius: 16, alignItems: 'center', marginTop: 10, marginBottom: 20 },
     calendarEventsBtnText: { color: Colors.white, fontSize: 16, fontWeight: 'bold' },
+    // Özel Günler Stilleri
+    specialDayEmoji: { fontSize: 10, marginTop: 2 },
+    specialDayCard: { marginTop: 16, padding: 14, borderRadius: 16, borderWidth: 2 },
+    specialDayCardHeader: { flexDirection: 'row', alignItems: 'center' },
+    specialDayCardEmoji: { fontSize: 32, marginRight: 12 },
+    specialDayCardTitle: { fontSize: 16, fontWeight: 'bold' },
+    specialDayCardDate: { fontSize: 13, color: '#6b7280', marginTop: 2 },
+    specialDayBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+    specialDayBadgeText: { color: 'white', fontSize: 11, fontWeight: '600' },
+    specialDaysSection: { marginTop: 20 },
+    specialDaysSectionTitle: { fontSize: 14, fontWeight: 'bold', color: Colors.darkGray, marginBottom: 12 },
+    noSpecialDays: { fontSize: 13, color: '#9ca3af', fontStyle: 'italic' },
+    specialDayRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f9fafb', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, marginBottom: 8 },
+    specialDayDot: { width: 8, height: 8, borderRadius: 4, marginRight: 10 },
+    specialDayRowEmoji: { fontSize: 16, marginRight: 8 },
+    specialDayRowDate: { fontSize: 13, fontWeight: '600', color: '#6b7280', marginRight: 8, width: 24 },
+    specialDayRowName: { fontSize: 13, fontWeight: '500', color: Colors.darkGray, flex: 1 },
+    // Yeni Etkinlik Stilleri
+    indicatorContainer: { flexDirection: 'row', alignItems: 'center', marginTop: -2 },
+    specialDayEmojiMini: { fontSize: 8 },
+    eventDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: Colors.primary.indigo, marginLeft: 2 },
+    selectedDayDetailContainer: { marginTop: 16, gap: 8 },
+    eventDetailCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f3f4f6', padding: 12, borderRadius: 16, gap: 12 },
+    eventDetailIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.white, justifyContent: 'center', alignItems: 'center' },
+    eventDetailTitle: { fontSize: 15, fontWeight: 'bold', color: Colors.darkGray },
+    eventDetailLocation: { fontSize: 12, color: '#6b7280', marginTop: 2 },
 });
 
 export default HomeScreen;

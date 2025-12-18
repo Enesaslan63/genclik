@@ -17,6 +17,10 @@ const WelcomeScreen: React.FC<Props> = ({ navigation }) => {
     navigation.replace('Main', { screen: 'Home' });
   };
 
+  const handleLogin = () => {
+    navigation.navigate('Login');
+  };
+
   return (
     <ImageBackground
       source={BackgroundImage}
@@ -68,7 +72,7 @@ const WelcomeScreen: React.FC<Props> = ({ navigation }) => {
             <Text style={styles.subtitleText}>"Sen de hazır mısın?"</Text>
 
             <View style={styles.buttons}>
-              <TouchableOpacity style={styles.primaryButtonWrapper} activeOpacity={0.9} onPress={handleEnterApp}>
+              <TouchableOpacity style={styles.primaryButtonWrapper} activeOpacity={0.9} onPress={handleLogin}>
                 <LinearGradient
                   colors={[Colors.primary.indigo, Colors.primary.violet]}
                   start={{ x: 0, y: 0 }}
