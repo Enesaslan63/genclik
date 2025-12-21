@@ -1,7 +1,8 @@
-import React from 'react';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import React, { useState, useRef, useCallback } from 'react';
+import { View, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
+import PagerView from 'react-native-pager-view';
 
 // Screens
 import HomeScreen from '@/screens/HomeScreen';
@@ -15,27 +16,78 @@ import PartnerDetailScreen from '@/screens/PartnerDetailScreen';
 import WelcomeScreen from '@/screens/WelcomeScreen';
 import HeritageDetailScreen from '@/screens/HeritageDetailScreen';
 import NotificationsScreen from '@/screens/NotificationsScreen';
-import WeatherDetailScreen from '@/screens/WeatherDetailScreen'; // YENİ EKLENDİ
+import WeatherDetailScreen from '@/screens/WeatherDetailScreen';
 import LoginScreen from '@/screens/LoginScreen';
+import EventDetailScreen from '@/screens/EventDetailScreen';
 
 // Custom Tab Bar
 import CustomTabBar from './CustomTabBar';
 
-const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
+// Sayfa isimleri ve sırası
+const TAB_NAMES = ['Home', 'Transport', 'GencKart', 'Assistant', 'Profile'] as const;
+type TabName = typeof TAB_NAMES[number];
+
 const MainTabs = () => {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const pagerRef = useRef<PagerView>(null);
+  const isProgrammaticChangeRef = useRef(false);
+
+  // PagerView'dan sayfa değiştiğinde güncelle (swipe tamamlandığında)
+  const handlePageSelected = useCallback((e: any) => {
+    const index = e.nativeEvent.position;
+    // Eğer programmatik değişiklik yoksa (yani kullanıcı swipe yaptıysa) güncelle
+    if (!isProgrammaticChangeRef.current) {
+      setActiveIndex(index);
+    } else {
+      // Programmatik değişiklik bitti, flag'i temizle
+      isProgrammaticChangeRef.current = false;
+    }
+  }, []);
+
+  // Tab bar'dan sayfa değiştirmek için callback
+  const handleTabPress = useCallback((index: number) => {
+    if (pagerRef.current && index !== activeIndex) {
+      // Programmatik değişiklik başladı
+      isProgrammaticChangeRef.current = true;
+      // Önce state'i güncelle, böylece tab bar anında değişir
+      setActiveIndex(index);
+      // Sonra PagerView sayfasını değiştir
+      pagerRef.current.setPage(index);
+    }
+  }, [activeIndex]);
+
   return (
-    <Tab.Navigator
-      tabBar={props => <CustomTabBar {...props} />}
-      screenOptions={{ headerShown: false }}
-    >
-      <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Transport" component={TransportScreen} />
-      <Tab.Screen name="GencKart" component={GencKartScreen} />
-      <Tab.Screen name="Assistant" component={AssistantScreen} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
-    </Tab.Navigator>
+    <View style={styles.container}>
+      <PagerView
+        ref={pagerRef}
+        style={styles.pagerView}
+        initialPage={0}
+        onPageSelected={handlePageSelected}
+      >
+        <View key="0" style={styles.page}>
+          <HomeScreen />
+        </View>
+        <View key="1" style={styles.page}>
+          <TransportScreen />
+        </View>
+        <View key="2" style={styles.page}>
+          <GencKartScreen />
+        </View>
+        <View key="3" style={styles.page}>
+          <AssistantScreen />
+        </View>
+        <View key="4" style={styles.page}>
+          <ProfileScreen />
+        </View>
+      </PagerView>
+      <CustomTabBar 
+        activeIndex={activeIndex} 
+        onTabPress={handleTabPress}
+        tabNames={TAB_NAMES}
+      />
+    </View>
   );
 };
 
@@ -55,9 +107,22 @@ const AppNavigator = () => {
         <Stack.Screen name="PartnerDetail" component={PartnerDetailScreen} />
         <Stack.Screen name="HeritageDetail" component={HeritageDetailScreen} />
         <Stack.Screen name="WeatherDetail" component={WeatherDetailScreen} />
+        <Stack.Screen name="EventDetail" component={EventDetailScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  pagerView: {
+    flex: 1,
+  },
+  page: {
+    flex: 1,
+  },
+});
 
 export default AppNavigator;

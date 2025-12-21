@@ -29,9 +29,15 @@ const LoginScreen = () => {
   const navigation = useNavigation<LoginScreenNavigationProp>();
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [loginVerificationCode, setLoginVerificationCode] = useState('');
+  const [showLoginCodeInput, setShowLoginCodeInput] = useState(false);
+  
+  // Kayıt formu state'leri
+  const [registerUsername, setRegisterUsername] = useState('');
+  const [registerEmail, setRegisterEmail] = useState('');
+  const [registerVerificationCode, setRegisterVerificationCode] = useState('');
+  const [showRegisterCodeInput, setShowRegisterCodeInput] = useState(false);
+  const [acceptTerms, setAcceptTerms] = useState(false);
 
   const handleLogin = () => {
     // Şimdilik direkt ana sayfaya yönlendiriyoruz
@@ -93,62 +99,131 @@ const LoginScreen = () => {
 
                   {/* Inputlar */}
                   <View style={styles.inputContainer}>
-                    <View style={styles.inputWrapper}>
-                      <TextInput
-                        placeholder="E-posta"
-                        placeholderTextColor="rgba(255,255,255,0.5)"
-                        style={styles.input}
-                        value={email}
-                        onChangeText={setEmail}
-                        autoCapitalize="none"
-                      />
-                    </View>
+                    {activeTab === 'login' ? (
+                      // Giriş Yap Inputları
+                      <>
+                        <View style={styles.inputWrapper}>
+                          <TextInput
+                            placeholder="E-posta"
+                            placeholderTextColor="rgba(255,255,255,0.5)"
+                            style={styles.input}
+                            value={email}
+                            onChangeText={setEmail}
+                            autoCapitalize="none"
+                            keyboardType="email-address"
+                            editable={!showLoginCodeInput}
+                          />
+                        </View>
+                        
+                        {showLoginCodeInput ? (
+                          <View style={styles.inputWrapper}>
+                            <TextInput
+                              placeholder="Doğrulama Kodu"
+                              placeholderTextColor="rgba(255,255,255,0.5)"
+                              style={styles.input}
+                              value={loginVerificationCode}
+                              onChangeText={setLoginVerificationCode}
+                              keyboardType="number-pad"
+                              maxLength={6}
+                            />
+                          </View>
+                        ) : null}
+                      </>
+                    ) : (
+                      // Kayıt Ol Inputları
+                      <>
+                        <View style={styles.inputWrapper}>
+                          <TextInput
+                            placeholder="Kullanıcı Adı"
+                            placeholderTextColor="rgba(255,255,255,0.5)"
+                            style={styles.input}
+                            value={registerUsername}
+                            onChangeText={setRegisterUsername}
+                            autoCapitalize="none"
+                          />
+                        </View>
 
-                    <View style={styles.inputWrapper}>
-                      <TextInput
-                        placeholder="Şifre"
-                        placeholderTextColor="rgba(255,255,255,0.5)"
-                        style={styles.input}
-                        value={password}
-                        onChangeText={setPassword}
-                        secureTextEntry={!showPassword}
-                      />
-                      <TouchableOpacity 
-                        onPress={() => setShowPassword(!showPassword)}
-                        style={styles.eyeIcon}
-                      >
-                        {showPassword ? (
-                          <EyeOff color="rgba(255,255,255,0.6)" size={20} />
-                        ) : (
-                          <Eye color="rgba(255,255,255,0.6)" size={20} />
-                        )}
-                      </TouchableOpacity>
-                    </View>
+                        <View style={styles.inputWrapper}>
+                          <TextInput
+                            placeholder="E-posta"
+                            placeholderTextColor="rgba(255,255,255,0.5)"
+                            style={styles.input}
+                            value={registerEmail}
+                            onChangeText={setRegisterEmail}
+                            autoCapitalize="none"
+                            keyboardType="email-address"
+                            editable={!showRegisterCodeInput}
+                          />
+                        </View>
+
+                        {showRegisterCodeInput ? (
+                          <View style={styles.inputWrapper}>
+                            <TextInput
+                              placeholder="Doğrulama Kodu"
+                              placeholderTextColor="rgba(255,255,255,0.5)"
+                              style={styles.input}
+                              value={registerVerificationCode}
+                              onChangeText={setRegisterVerificationCode}
+                              keyboardType="number-pad"
+                              maxLength={6}
+                            />
+                          </View>
+                        ) : null}
+                      </>
+                    )}
                   </View>
 
                   {/* Alt Seçenekler */}
-                  <View style={styles.optionsRow}>
-                    <TouchableOpacity style={styles.forgotBtn}>
-                      <Text style={styles.optionText}>Şifremi Unuttum?</Text>
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity 
-                        style={styles.rememberRow}
-                        onPress={() => setRememberMe(!rememberMe)}
-                    >
-                      {rememberMe ? (
-                        <CheckCircle2 color="#a855f7" size={18} />
-                      ) : (
-                        <Circle color="rgba(255,255,255,0.4)" size={18} />
-                      )}
-                      <Text style={[styles.optionText, { marginLeft: 6 }]}>Kullanım Koşulları'nı kabul ederim.</Text>
-                    </TouchableOpacity>
-                  </View>
+                  {activeTab === 'register' && (
+                    <View style={styles.optionsRow}>
+                      <TouchableOpacity 
+                          style={styles.rememberRow}
+                          onPress={() => setAcceptTerms(!acceptTerms)}
+                      >
+                        {acceptTerms ? (
+                          <CheckCircle2 color="#a855f7" size={18} />
+                        ) : (
+                          <Circle color="rgba(255,255,255,0.4)" size={18} />
+                        )}
+                        <Text style={[styles.optionText, { marginLeft: 6 }]}>Kullanım Koşulları'nı kabul ederim.</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
 
-                  {/* Giriş Butonu */}
+                  {/* Giriş/Kayıt Butonu */}
                   <TouchableOpacity 
                     activeOpacity={0.8} 
-                    onPress={handleLogin}
+                    onPress={() => {
+                      if (activeTab === 'login') {
+                        // Giriş yapma akışı
+                        if (showLoginCodeInput && loginVerificationCode) {
+                          // Kod doğrulandıktan sonra ana sayfaya yönlendir
+                          navigation.replace('Main', { screen: 'Home' });
+                        } else if (showLoginCodeInput) {
+                          // Kod doğrulama butonu basıldı
+                          // Şimdilik direkt yönlendir, sonra doğrulama işlemi yapılacak
+                          navigation.replace('Main', { screen: 'Home' });
+                        } else {
+                          // E-posta gönder butonu basıldı
+                          // Şimdilik sadece UI, sonra Supabase ile kod göndereceğiz
+                          setShowLoginCodeInput(true);
+                        }
+                      } else {
+                        // Kayıt olma akışı
+                        if (showRegisterCodeInput && registerVerificationCode) {
+                          // Kod doğrulandıktan sonra ana sayfaya yönlendir
+                          navigation.replace('Main', { screen: 'Home' });
+                        } else if (showRegisterCodeInput) {
+                          // Kod doğrulama butonu basıldı
+                          // Şimdilik direkt yönlendir, sonra doğrulama işlemi yapılacak
+                          navigation.replace('Main', { screen: 'Home' });
+                        } else {
+                          // E-posta gönder butonu basıldı
+                          // Şimdilik sadece UI, sonra Supabase ile kod göndereceğiz
+                          setShowRegisterCodeInput(true);
+                        }
+                      }
+                    }}
                     style={styles.loginBtnWrapper}
                   >
                     <LinearGradient
@@ -157,25 +232,24 @@ const LoginScreen = () => {
                       end={{ x: 1, y: 0 }}
                       style={styles.loginBtn}
                     >
-                      <Text style={styles.loginBtnText}>Giriş Yap</Text>
+                      <Text style={styles.loginBtnText}>
+                        {activeTab === 'login'
+                          ? showLoginCodeInput && email
+                            ? 'Giriş Yap'
+                            : 'Kod Gönder'
+                          : showRegisterCodeInput
+                            ? 'Kodu Doğrula'
+                            : 'Doğrulama Kodu Gönder'}
+                      </Text>
                     </LinearGradient>
                   </TouchableOpacity>
 
-                  {/* Sosyal Giriş */}
-                  <View style={styles.socialHeader}>
-                    <View style={styles.line} />
-                    <Text style={styles.socialLabel}>veya</Text>
-                    <View style={styles.line} />
-                  </View>
-
-                  <View style={styles.socialButtons}>
-                    <TouchableOpacity style={styles.socialIcon}>
-                      <Text style={styles.socialIconText}>G</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.socialIcon}>
-                      <Text style={styles.socialIconText}>f</Text>
-                    </TouchableOpacity>
-                  </View>
+                  <TouchableOpacity 
+                    onPress={() => navigation.replace('Main', { screen: 'Home' })}
+                    style={styles.guestLoginButton}
+                  >
+                    <Text style={styles.guestLoginButtonText}>Misafir Girişi Yap</Text>
+                  </TouchableOpacity>
                 </View>
               </BlurView>
             </View>
@@ -202,7 +276,6 @@ const styles = StyleSheet.create({
     height: 300,
     borderRadius: 150,
     opacity: 0.3,
-    blur: 100,
   },
   container: {
     flex: 1,
@@ -211,11 +284,12 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 24,
     paddingBottom: 40,
+    justifyContent: 'center',
   },
   header: {
     alignItems: 'center',
-    marginTop: height * 0.05,
-    marginBottom: 30,
+    marginTop: height * 0.03,
+    marginBottom: 20,
   },
   title: {
     fontSize: 42,
@@ -297,6 +371,21 @@ const styles = StyleSheet.create({
   eyeIcon: {
     padding: 4,
   },
+  sendCodeButton: {
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: 'rgba(168, 85, 247, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(168, 85, 247, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  sendCodeText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   optionsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -333,44 +422,23 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     letterSpacing: 1,
   },
-  socialHeader: {
-    flexDirection: 'row',
+  guestLoginButton: {
     alignItems: 'center',
-    marginBottom: 20,
-  },
-  line: {
-    flex: 1,
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  socialLabel: {
-    color: 'rgba(255,255,255,0.4)',
-    marginHorizontal: 12,
-    fontSize: 12,
-  },
-  socialButtons: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 20,
-  },
-  socialIcon: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    paddingVertical: 12,
+    borderRadius: 28, // Main buton ile aynı yuvarlaklığı koruyalım
+    backgroundColor: 'rgba(139, 92, 246, 0.15)', // Violet renginin şeffaf bir tonu
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    shadowColor: '#fff',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
+    borderColor: 'rgba(139, 92, 246, 0.3)', // Daha belirgin bir kenarlık
+    marginTop: 10, // Ana butondan biraz boşluk bırakalım
+    shadowColor: Colors.primary.violet,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
   },
-  socialIconText: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: '500',
+  guestLoginButtonText: {
+    color: Colors.primary.violet,
+    fontSize: 16, // Biraz daha büyük font
+    fontWeight: '700', // Daha kalın font
   },
   cityOutlineContainer: {
     position: 'absolute',

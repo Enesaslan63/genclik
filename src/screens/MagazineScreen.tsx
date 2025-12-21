@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ScrollView } from 'react-native';
+import React, { useState, useMemo, useEffect } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Download, ChevronRight } from 'lucide-react-native';
@@ -9,21 +9,65 @@ import DergiCover from '@/assets/images/dergi.png';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import type { RootStackParamList } from '@/types/navigation';
 import { useThemeMode } from '@/context/ThemeContext';
+import { supabase, processImageUrl } from '@/lib/supabase';
 
 type Nav = StackNavigationProp<RootStackParamList>;
+
+// Supabase Magazine Veri Tipi
+interface MagazineData {
+  id: number;
+  baslik: string;
+  aciklama?: string;
+  kategori?: string;
+  resim_url?: string;
+}
 
 const MagazineScreen = () => {
   const navigation = useNavigation<Nav>();
   const { mode } = useThemeMode();
   const isDark = mode === 'dark';
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'historic' | 'museum' | 'nature'>('all');
+  const [magazines, setMagazines] = useState<MagazineData[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Supabase'den keşfet verilerini çek
+  const fetchMagazines = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('kesfet')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (data) setMagazines(data);
+      if (error) console.log("Keşfet hatası:", error);
+    } catch (e) {
+      console.log(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMagazines();
+  }, []);
+
+  // Magazine verisini UI'a uygun formata çevir
+  const formatMagazine = (mag: MagazineData): any => ({
+    id: mag.id.toString(),
+    title: mag.baslik,
+    description: mag.aciklama,
+    category: (mag.kategori as 'historic' | 'museum' | 'nature') || 'historic',
+    image: processImageUrl(mag.resim_url, 'kesfet_resimleri') || 'https://via.placeholder.com/400x300',
+  });
+
+  const formattedMagazines = magazines.map(formatMagazine);
 
   const filteredMagazines = useMemo(
     () =>
       selectedCategory === 'all'
-        ? MOCK_MAGAZINES
-        : MOCK_MAGAZINES.filter((item) => item.category === selectedCategory),
-    [selectedCategory]
+        ? formattedMagazines
+        : formattedMagazines.filter((item) => item.category === selectedCategory),
+    [selectedCategory, formattedMagazines]
   );
 
   return (
@@ -121,32 +165,44 @@ const MagazineScreen = () => {
           </TouchableOpacity>
         </ScrollView>
 
-        <FlatList
-          horizontal
-          data={filteredMagazines}
-          renderItem={({ item }) => {
-            const imageSource = typeof item.image === 'string'
-              ? { uri: item.image }
-              : item.image;
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator color={Colors.primary.indigo} size="large" />
+          </View>
+        ) : filteredMagazines.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={[styles.emptyText, isDark && { color: '#94a3b8' }]}>
+              {selectedCategory === 'all' ? 'Henüz içerik bulunmuyor.' : 'Bu kategoride içerik bulunmuyor.'}
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            horizontal
+            data={filteredMagazines}
+            renderItem={({ item }) => {
+              const imageSource = typeof item.image === 'string'
+                ? { uri: item.image }
+                : item.image;
 
-            return (
-              <TouchableOpacity
-                style={[styles.heritageCard, isDark && { backgroundColor: '#1e293b' }]}
-                activeOpacity={0.9}
-                onPress={() => navigation.navigate('HeritageDetail', { id: item.id })}
-              >
-                <Image source={imageSource} style={styles.heritageImage} />
-                <View style={styles.heritageOverlay} />
-                <View style={styles.heritageTextContainer}>
-                  <Text style={styles.heritageTitle}>{item.title}</Text>
-                </View>
-              </TouchableOpacity>
-            );
-          }}
-          keyExtractor={(item) => item.id}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalList}
-        />
+              return (
+                <TouchableOpacity
+                  style={[styles.heritageCard, isDark && { backgroundColor: '#1e293b' }]}
+                  activeOpacity={0.9}
+                  onPress={() => navigation.navigate('HeritageDetail', { id: item.id })}
+                >
+                  <Image source={imageSource} style={styles.heritageImage} />
+                  <View style={styles.heritageOverlay} />
+                  <View style={styles.heritageTextContainer}>
+                    <Text style={styles.heritageTitle}>{item.title}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            }}
+            keyExtractor={(item) => item.id}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.horizontalList}
+          />
+        )}
 
         {/* E-Dergi */}
         <Text style={[styles.sectionTitle, isDark && { color: '#94a3b8' }]}>E-Dergi</Text>
@@ -296,6 +352,22 @@ const styles = StyleSheet.create({
   categoryChipTextActive: {
     color: Colors.white,
     fontWeight: '600',
+  },
+  loadingContainer: {
+    height: 160,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyContainer: {
+    height: 160,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#64748b',
+    textAlign: 'center',
   },
 });
 

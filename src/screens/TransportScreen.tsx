@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, Keyboard, ActivityIndicator, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, Keyboard, ActivityIndicator, Dimensions, Modal } from 'react-native';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Search, MapPin, Star, Info, Maximize2, Minimize2 } from 'lucide-react-native';
+import { Search, MapPin, Star, Info, Maximize2, Minimize2, Navigation, ArrowRight } from 'lucide-react-native';
 import * as Location from 'expo-location';
 import { Platform } from 'react-native';
 import { Colors } from '@/constants/Colors';
@@ -33,6 +33,16 @@ const TransportScreen = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [favorites, setFavorites] = useState<string[]>(['abide', 'osmanbey']);
   const [isMapExpanded, setIsMapExpanded] = useState(false);
+  const [fromStop, setFromStop] = useState<typeof MOCK_STOPS[0] | null>(null);
+  const [toStop, setToStop] = useState<typeof MOCK_STOPS[0] | null>(null);
+  const [showStopPicker, setShowStopPicker] = useState<'from' | 'to' | null>(null);
+  const [routes, setRoutes] = useState<Array<{
+    type: 'direct' | 'transfer';
+    directLine?: string;
+    transferFromLine?: string;
+    transferToLine?: string;
+    transferStop?: typeof MOCK_STOPS[0];
+  }>>([]);
 
   const toggleFavorite = (stopId: string) => {
     setFavorites((prev) => {
@@ -141,9 +151,11 @@ const TransportScreen = () => {
         });
 
         setNearestStop(closest);
+        setFromStop(closest); // En yakın durağı varsayılan "Nereden" olarak ayarla
       } else {
         // Konum yoksa varsayılan olarak Abide durağını seç
         setNearestStop(MOCK_STOPS[0]);
+        setFromStop(MOCK_STOPS[0]); // Varsayılan durağı "Nereden" olarak ayarla
       }
       setIsLoading(false);
     })();
@@ -159,6 +171,80 @@ const TransportScreen = () => {
       setUpcomingBuses(buses.sort((a, b) => a.estimatedArrival - b.estimatedArrival));
     }
   }, [nearestStop]);
+
+  // Rota planlama algoritması
+  useEffect(() => {
+    if (!fromStop || !toStop || fromStop.id === toStop.id) {
+      setRoutes([]);
+      return;
+    }
+
+    const foundRoutes: Array<{
+      type: 'direct' | 'transfer';
+      directLine?: string;
+      transferFromLine?: string;
+      transferToLine?: string;
+      transferStop?: typeof MOCK_STOPS[0];
+    }> = [];
+
+    // 1. Direkt hat kontrolü: Her iki duraktan da geçen hatlar
+    const fromLines = new Set(fromStop.buses.map(bus => bus.line));
+    const toLines = new Set(toStop.buses.map(bus => bus.line));
+    const commonLines = Array.from(fromLines).filter(line => toLines.has(line));
+    
+    commonLines.forEach(line => {
+      foundRoutes.push({ type: 'direct', directLine: line });
+    });
+
+    // 2. Aktarmalı rota: Bir ara durak üzerinden iki hat ile gitme
+    // fromStop'tan bir hat ile ara durağa, oradan başka bir hat ile toStop'a
+    // NOT: Direkt rota varsa, direkt rota hatlarını kullanarak aktarmalı rota gösterme
+    fromStop.buses.forEach(fromBus => {
+      // Direkt rota olan hatları kullanarak aktarmalı rota oluşturma
+      if (commonLines.includes(fromBus.line)) {
+        return; // Bu hat zaten direkt rota, gereksiz aktarma
+      }
+
+      // Bu hatın geçtiği durakları bul
+      const stopsWithFromLine = MOCK_STOPS.filter(stop => 
+        stop.id !== fromStop.id && 
+        stop.id !== toStop.id &&
+        stop.buses.some(bus => bus.line === fromBus.line)
+      );
+
+      stopsWithFromLine.forEach(transferStop => {
+        // Aktarma durağından toStop'a giden hatları kontrol et
+        const transferStopLines = new Set(transferStop.buses.map(bus => bus.line));
+        const toStopLines = new Set(toStop.buses.map(bus => bus.line));
+        // Direkt rota hatlarını hariç tut - çünkü direkt rota zaten var
+        const availableLines = Array.from(transferStopLines).filter(line => 
+          toStopLines.has(line) && 
+          !commonLines.includes(line) // Direkt rota hatlarını kullanma
+        );
+
+        availableLines.forEach(toLine => {
+          // Daha önce eklenmiş mi kontrol et
+          const alreadyAdded = foundRoutes.some(route =>
+            route.type === 'transfer' &&
+            route.transferFromLine === fromBus.line &&
+            route.transferToLine === toLine &&
+            route.transferStop?.id === transferStop.id
+          );
+
+          if (!alreadyAdded && fromBus.line !== toLine) {
+            foundRoutes.push({
+              type: 'transfer',
+              transferFromLine: fromBus.line,
+              transferToLine: toLine,
+              transferStop: transferStop,
+            });
+          }
+        });
+      });
+    });
+
+    setRoutes(foundRoutes);
+  }, [fromStop, toStop]);
 
   if (isLoading) {
     return (
@@ -302,7 +388,7 @@ const TransportScreen = () => {
           keyboardDismissMode="on-drag"
         >
           <View style={styles.card}>
-          {/* Header */}
+            {/* Header */}
             <View style={styles.headerRow}>
               <View>
                 <Text style={styles.title}>Ulaşım Rehberi</Text>
@@ -311,6 +397,41 @@ const TransportScreen = () => {
               <View style={styles.headerIcon}>
                 <MapPin color={Colors.primary.indigo} size={22} />
               </View>
+            </View>
+
+            {/* Nereden - Nereye Seçimi */}
+            <View style={styles.routeSelector}>
+              <TouchableOpacity
+                style={[styles.routeButton, isDark && { backgroundColor: '#1e293b', borderColor: '#334155' }]}
+                onPress={() => setShowStopPicker('from')}
+              >
+                <View style={styles.routeButtonContent}>
+                  <Navigation color={isDark ? '#a5b4fc' : Colors.primary.indigo} size={20} />
+                  <View style={styles.routeButtonTextContainer}>
+                    <Text style={[styles.routeButtonLabel, isDark && { color: '#94a3b8' }]}>Nereden</Text>
+                    <Text style={[styles.routeButtonValue, isDark && { color: '#f8fafc' }]} numberOfLines={1}>
+                      {fromStop ? fromStop.name : 'Durak seçin'}
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+
+              <ArrowRight color={isDark ? '#64748b' : '#9ca3af'} size={24} style={{ marginHorizontal: 12 }} />
+
+              <TouchableOpacity
+                style={[styles.routeButton, isDark && { backgroundColor: '#1e293b', borderColor: '#334155' }]}
+                onPress={() => setShowStopPicker('to')}
+              >
+                <View style={styles.routeButtonContent}>
+                  <MapPin color={isDark ? '#10b981' : '#10b981'} size={20} />
+                  <View style={styles.routeButtonTextContainer}>
+                    <Text style={[styles.routeButtonLabel, isDark && { color: '#94a3b8' }]}>Nereye</Text>
+                    <Text style={[styles.routeButtonValue, isDark && { color: '#f8fafc' }]} numberOfLines={1}>
+                      {toStop ? toStop.name : 'Durak seçin'}
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
             </View>
 
             {/* Map Preview */}
@@ -502,80 +623,271 @@ const TransportScreen = () => {
             )}
           </ScrollView>
 
-          {/* Upcoming buses */}
-          <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
-            <Text style={styles.sectionTitle}>Yaklaşan Otobüsler</Text>
-            {nearestStop && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <TouchableOpacity
-                  onPress={() => toggleFavorite(nearestStop.id)}
-                  style={{ padding: 4 }}
-                >
-                  <Star
-                    color={favorites.includes(nearestStop.id) ? '#facc15' : '#9ca3af'}
-                    size={20}
-                    fill={favorites.includes(nearestStop.id) ? '#facc15' : 'transparent'}
-                  />
-                </TouchableOpacity>
-                <View style={styles.nearestPill}>
-                  <Text style={styles.nearestPillText}>{nearestStop.name}</Text>
+          {/* Rota Planlama Sonuçları */}
+          {fromStop && toStop && fromStop.id !== toStop.id && (
+            <View style={{ marginTop: 24 }}>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={[styles.sectionTitle, isDark && { color: '#f8fafc' }]}>Alternatif Rotolar</Text>
+              </View>
+              
+              {/* Rota Bilgisi - Daha kompakt ve okunabilir */}
+              <View style={[styles.routeInfoCard, isDark && { backgroundColor: '#1e293b', borderColor: '#334155' }]}>
+                <View style={styles.routeInfoRow}>
+                  <Navigation color={Colors.primary.indigo} size={18} />
+                  <Text style={[styles.routeInfoFrom, isDark && { color: '#f8fafc' }]} numberOfLines={1}>
+                    {fromStop.name}
+                  </Text>
+                </View>
+                <View style={styles.routeInfoArrow}>
+                  <ArrowRight color={isDark ? '#64748b' : '#9ca3af'} size={20} />
+                </View>
+                <View style={styles.routeInfoRow}>
+                  <MapPin color="#10b981" size={18} />
+                  <Text style={[styles.routeInfoTo, isDark && { color: '#f8fafc' }]} numberOfLines={1}>
+                    {toStop.name}
+                  </Text>
                 </View>
               </View>
-            )}
-          </View>
-          
-          <View style={styles.infoRow}>
-            <Info size={14} color="#6b7280" />
-            <Text style={styles.infoText}>Varış süreleri tahminidir, bilgilendirme amaçlıdır.</Text>
-          </View>
 
-          <View style={styles.busList}>
-            {upcomingBuses.map((bus, index) => (
-              <View
-                key={index}
-                style={[
-                  styles.busCard, 
-                  { borderColor: bus.color || Colors.primary.indigo },
-                  isDark && { backgroundColor: '#1e293b', borderColor: '#334155' } // Dark modda border rengini yumuşat
-                ]}
-              >
-                <View style={styles.busLeft}>
-                  <View
-                    style={[
-                      styles.busNumberBadge,
-                      { borderColor: bus.color || Colors.primary.indigo },
-                      isDark && { backgroundColor: '#0f172a', borderColor: bus.color || Colors.primary.indigo }
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.busNumberText,
-                        { color: bus.color || Colors.primary.indigo },
-                      ]}
+              {routes.length === 0 ? (
+                <View style={[styles.noRouteCard, isDark && { backgroundColor: '#1e293b' }]}>
+                  <Text style={[styles.noRouteText, isDark && { color: '#94a3b8' }]}>
+                    Bu iki durak arasında direkt veya aktarmalı rota bulunamadı.
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.routeList}>
+                  {/* Önce direkt rotaları göster */}
+                  {routes.filter(route => route.type === 'direct').map((route, index) => (
+                    <View
+                      key={`direct-${index}`}
+                      style={[styles.routeCard, isDark && { backgroundColor: '#1e293b', borderColor: '#334155' }]}
                     >
-                      {bus.line}
-                    </Text>
-                  </View>
-                  <View>
-                    <Text style={[styles.busDestination, isDark && { color: '#f8fafc' }]}>{bus.route}</Text>
-                    <Text style={[styles.busTariff, isDark && { color: '#94a3b8' }]}>Tarife: Normal</Text>
-                  </View>
+                      <View style={styles.routeCardContent}>
+                        <View style={styles.routeDetails}>
+                          <View style={styles.routeLineContainer}>
+                            <View
+                              style={[
+                                styles.routeLineBadge,
+                                {
+                                  borderColor:
+                                    fromStop.buses.find(b => b.line === route.directLine)?.color ||
+                                    Colors.primary.indigo,
+                                  backgroundColor:
+                                    fromStop.buses.find(b => b.line === route.directLine)?.color
+                                      ? `${fromStop.buses.find(b => b.line === route.directLine)?.color}15`
+                                      : `${Colors.primary.indigo}15`,
+                                },
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.routeLineText,
+                                  {
+                                    color:
+                                      fromStop.buses.find(b => b.line === route.directLine)?.color ||
+                                      Colors.primary.indigo,
+                                  },
+                                ]}
+                              >
+                                {route.directLine}
+                              </Text>
+                            </View>
+                            <View style={styles.routeTextContainer}>
+                              <Text style={[styles.routeDescription, isDark && { color: '#f8fafc' }]}>
+                                {fromStop.buses.find(b => b.line === route.directLine)?.route}
+                              </Text>
+                              <View style={styles.routeTypeInline}>
+                                <View style={[styles.routeTypeBadgeSmall, { backgroundColor: '#dcfce7' }]}>
+                                  <Text style={[styles.routeTypeTextSmall, { color: '#16a34a' }]}>Direkt</Text>
+                                </View>
+                              </View>
+                            </View>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+                  ))}
+                  
+                  {/* Sonra aktarmalı rotaları göster */}
+                  {routes.filter(route => route.type === 'transfer').map((route, index) => (
+                    <View
+                      key={`transfer-${index}`}
+                      style={[styles.routeCard, isDark && { backgroundColor: '#1e293b', borderColor: '#334155' }]}
+                    >
+                      <View style={styles.routeCardContent}>
+                        <View style={styles.routeDetails}>
+                          {/* İlk Hat */}
+                          <View style={styles.routeLineContainer}>
+                            <View
+                              style={[
+                                styles.routeLineBadge,
+                                {
+                                  borderColor:
+                                    fromStop.buses.find(b => b.line === route.transferFromLine)?.color ||
+                                    Colors.primary.indigo,
+                                  backgroundColor:
+                                    fromStop.buses.find(b => b.line === route.transferFromLine)?.color
+                                      ? `${fromStop.buses.find(b => b.line === route.transferFromLine)?.color}15`
+                                      : `${Colors.primary.indigo}15`,
+                                },
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.routeLineText,
+                                  {
+                                    color:
+                                      fromStop.buses.find(b => b.line === route.transferFromLine)?.color ||
+                                      Colors.primary.indigo,
+                                  },
+                                ]}
+                              >
+                                {route.transferFromLine}
+                              </Text>
+                            </View>
+                            <View style={styles.routeTextContainer}>
+                              <Text style={[styles.routeDescription, isDark && { color: '#f8fafc' }]}>
+                                {fromStop.buses.find(b => b.line === route.transferFromLine)?.route}
+                              </Text>
+                            </View>
+                          </View>
+                          
+                          {/* Aktarma Noktası - Daha görsel */}
+                          <View style={[styles.routeTransferContainer, isDark && { backgroundColor: '#0f172a' }]}>
+                            <View style={styles.routeTransferLine} />
+                            <View style={styles.routeTransferContent}>
+                              <MapPin color="#f59e0b" size={16} />
+                              <Text style={[styles.routeTransferText, isDark && { color: '#fbbf24' }]}>
+                                {route.transferStop?.name}
+                              </Text>
+                            </View>
+                            <View style={styles.routeTransferLine} />
+                          </View>
+                          
+                          {/* İkinci Hat */}
+                          <View style={styles.routeLineContainer}>
+                            <View
+                              style={[
+                                styles.routeLineBadge,
+                                {
+                                  borderColor:
+                                    toStop.buses.find(b => b.line === route.transferToLine)?.color ||
+                                    '#10b981',
+                                  backgroundColor:
+                                    toStop.buses.find(b => b.line === route.transferToLine)?.color
+                                      ? `${toStop.buses.find(b => b.line === route.transferToLine)?.color}15`
+                                      : '#10b98115',
+                                },
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.routeLineText,
+                                  {
+                                    color:
+                                      toStop.buses.find(b => b.line === route.transferToLine)?.color ||
+                                      '#10b981',
+                                  },
+                                ]}
+                              >
+                                {route.transferToLine}
+                              </Text>
+                            </View>
+                            <View style={styles.routeTextContainer}>
+                              <Text style={[styles.routeDescription, isDark && { color: '#f8fafc' }]}>
+                                {toStop.buses.find(b => b.line === route.transferToLine)?.route}
+                              </Text>
+                            </View>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+                  ))}
                 </View>
+              )}
+            </View>
+          )}
 
-                {/* <View style={styles.busRight}>
-                  <Text style={styles.busTime}>{bus.estimatedArrival} dk</Text>
-                </View> */}
-              </View>
-            ))}
-            {upcomingBuses.length === 0 && (
-               <Text style={{ textAlign: 'center', color: '#6b7280', marginTop: 20 }}>
-                 Bu durak için yaklaşan otobüs bulunamadı.
-               </Text>
-            )}
-          </View>
         </View>
       </ScrollView>
       )}
+
+      {/* Durak Seçim Modal */}
+      <Modal
+        visible={showStopPicker !== null}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowStopPicker(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, isDark && { backgroundColor: '#1e293b' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, isDark && { color: '#f8fafc' }]}>
+                {showStopPicker === 'from' ? 'Nereden?' : 'Nereye?'}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowStopPicker(null)}
+                style={styles.modalCloseButton}
+              >
+                <Text style={[styles.modalCloseText, isDark && { color: '#94a3b8' }]}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={[styles.modalSearchContainer, isDark && { backgroundColor: '#0f172a' }]}>
+              <Search color={isDark ? '#94a3b8' : '#9ca3af'} size={20} />
+              <TextInput
+                placeholder="Durak ara..."
+                style={[styles.modalSearchInput, isDark && { color: '#f8fafc' }]}
+                placeholderTextColor={isDark ? '#64748b' : '#9ca3af'}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+            </View>
+
+            <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={true}>
+              {filteredStops.map((stop) => (
+                <TouchableOpacity
+                  key={stop.id}
+                  style={[
+                    styles.modalStopItem,
+                    isDark && { borderBottomColor: '#334155' },
+                    ((showStopPicker === 'from' && fromStop?.id === stop.id) ||
+                     (showStopPicker === 'to' && toStop?.id === stop.id)) &&
+                    (isDark ? { backgroundColor: '#334155' } : styles.modalStopItemSelected)
+                  ]}
+                  onPress={() => {
+                    // State'i güncelle
+                    if (showStopPicker === 'from') {
+                      setFromStop(stop);
+                    } else {
+                      setToStop(stop);
+                    }
+                    // Modal'ı kapat ve aramayı temizle
+                    setShowStopPicker(null);
+                    setSearchQuery('');
+                  }}
+                >
+                  <View style={[styles.modalStopIcon, isDark && { backgroundColor: '#334155' }]}>
+                    <MapPin
+                      size={18}
+                      color={showStopPicker === 'from' ? Colors.primary.indigo : '#10b981'}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.modalStopName, isDark && { color: '#f8fafc' }]}>
+                      {stop.name}
+                    </Text>
+                    <Text style={[styles.modalStopLines, isDark && { color: '#94a3b8' }]}>
+                      {stop.buses.map((b) => b.line).join(', ')}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -959,6 +1271,249 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     textAlign: 'center',
     padding: 8,
+  },
+  routeSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  routeButton: {
+    flex: 1,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  routeButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  routeButtonTextContainer: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  routeButtonLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginBottom: 4,
+  },
+  routeButtonValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.darkGray,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '80%',
+    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: Colors.darkGray,
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  modalCloseText: {
+    fontSize: 24,
+    color: Colors.darkGray,
+  },
+  modalSearchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f3f4f6',
+    borderRadius: 16,
+    paddingHorizontal: 15,
+    marginHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 12,
+    height: 50,
+  },
+  modalSearchInput: {
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 16,
+    color: Colors.darkGray,
+  },
+  modalScrollView: {
+    maxHeight: 400,
+  },
+  modalStopItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  modalStopItemSelected: {
+    backgroundColor: '#eef2ff',
+  },
+  modalStopIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#eef2ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  modalStopName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.darkGray,
+    marginBottom: 4,
+  },
+  modalStopLines: {
+    fontSize: 13,
+    color: '#9ca3af',
+  },
+  routeInfoCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f9fafb',
+    borderRadius: 16,
+    padding: 14,
+    marginTop: 12,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  routeInfoRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  routeInfoFrom: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.darkGray,
+  },
+  routeInfoTo: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.darkGray,
+  },
+  routeInfoArrow: {
+    marginHorizontal: 12,
+  },
+  noRouteCard: {
+    backgroundColor: '#f9fafb',
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    marginTop: 12,
+  },
+  noRouteText: {
+    textAlign: 'center',
+    color: '#6b7280',
+    fontSize: 14,
+  },
+  routeList: {
+    marginTop: 12,
+    gap: 12,
+  },
+  routeCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  routeCardContent: {
+    width: '100%',
+  },
+  routeDetails: {
+    flex: 1,
+  },
+  routeLineContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  routeLineBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  routeLineText: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  routeTextContainer: {
+    flex: 1,
+    paddingTop: 2,
+  },
+  routeDescription: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.darkGray,
+    marginBottom: 6,
+  },
+  routeTypeInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  routeTypeBadgeSmall: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  routeTypeTextSmall: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  routeTransferContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 12,
+    backgroundColor: '#fef3c7',
+    borderRadius: 12,
+    padding: 12,
+    gap: 12,
+  },
+  routeTransferLine: {
+    flex: 1,
+    height: 2,
+    backgroundColor: '#fbbf24',
+    borderRadius: 1,
+  },
+  routeTransferContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 4,
+  },
+  routeTransferText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#92400e',
+    flex: 1,
   },
 });
 

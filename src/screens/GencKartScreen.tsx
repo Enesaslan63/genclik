@@ -48,7 +48,7 @@ const GencKartScreen = () => {
     >
         <ScrollView showsVerticalScrollIndicator={false}>
             <View style={styles.header}>
-                <Text style={[styles.headerTitle, isDark && { color: '#f8fafc' }]}>ŞanlıGenç Kart</Text>
+                <Text style={[styles.headerTitle, isDark && { color: '#f8fafc' }]}>Şanlı Genç Kart</Text>
                 <Text style={[styles.headerSubtitle, isDark && { color: '#94a3b8' }]}>Şehrin anahtarı cebinde!</Text>
             </View>
 

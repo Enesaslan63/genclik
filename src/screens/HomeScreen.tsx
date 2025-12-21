@@ -10,6 +10,9 @@ import {
   PanResponder,
   Animated,
   Easing,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -17,7 +20,8 @@ import { BlurView } from 'expo-blur';
 import { 
   Calendar, BookOpen, User, Megaphone, Palette, Bus, Users, 
   Flame, QrCode, X, ChevronLeft, ChevronRight,
-  CloudRain, Sun, Cloud, CloudSnow, CloudLightning, CloudDrizzle 
+  CloudRain, Sun, Cloud, CloudSnow, CloudLightning, CloudDrizzle,
+  Tag, Coffee, Shirt, Smartphone, Ticket, GraduationCap, Gift
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Colors } from '@/constants/Colors';
@@ -25,14 +29,43 @@ import { MOCK_BUSES, MOCK_PARTNERS, MOCK_EVENTS } from '@/api/mockData';
 import { HomeScreenProps, MainTabParamList } from '@/types/navigation';
 import { useThemeMode } from '@/context/ThemeContext';
 import MustafaImage from '../assets/images/mustafa.jpg';
+import { supabase, processImageUrl } from '@/lib/supabase';
 
-const HEADER_NAV = [
-    { name: 'Başkan', icon: User, image: MustafaImage },
-    { name: 'Duyurular', icon: Megaphone, image: 'https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?q=80&w=2670&auto=format&fit=crop' },
-    { name: 'Kültür Sanat', icon: Palette, image: 'https://images.unsplash.com/photo-1524368535928-5b5e00ddc76b?q=80&w=2670&auto=format&fit=crop' },
-    { name: 'Ulaşım', icon: Bus, image: 'https://images.unsplash.com/photo-1570125909232-eb263c1869e7?q=80&w=2670&auto=format&fit=crop' },
-    { name: 'Gençlik', icon: Users, image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?q=80&w=2670&auto=format&fit=crop' },
-]
+// Supabase Veri Tipleri
+interface FirsatData {
+  id: number;
+  baslik: string;
+  aciklama: string;
+  tarih?: string;
+  kategori: string;
+  resim_url?: string;
+}
+
+interface StoryData {
+  id: number;
+  baslik: string;
+  aciklama?: string;
+  resim_url?: string;
+  icon?: string;
+  sira?: number;
+}
+
+// Icon mapping
+const ICON_MAP: Record<string, any> = {
+  'user': User,
+  'megaphone': Megaphone,
+  'palette': Palette,
+  'bus': Bus,
+  'users': Users,
+};
+
+const DEFAULT_STORIES = [
+  { name: 'Başkan', icon: User, image: MustafaImage },
+  { name: 'Duyurular', icon: Megaphone, image: 'https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?q=80&w=2670&auto=format&fit=crop' },
+  { name: 'Kültür Sanat', icon: Palette, image: 'https://images.unsplash.com/photo-1524368535928-5b5e00ddc76b?q=80&w=2670&auto=format&fit=crop' },
+  { name: 'Ulaşım', icon: Bus, image: 'https://images.unsplash.com/photo-1570125909232-eb263c1869e7?q=80&w=2670&auto=format&fit=crop' },
+  { name: 'Gençlik', icon: Users, image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?q=80&w=2670&auto=format&fit=crop' },
+];
 
 const QUICK_ACCESS_NAV = [
     { name: 'Etkinlik', icon: Calendar, color: '#fee2e2', iconColor: '#ef4444', screen: 'Events', type: 'stack' },
@@ -68,6 +101,43 @@ const HomeScreen = () => {
   const [calendarVisible, setCalendarVisible] = useState(false);
   const [calendarView, setCalendarView] = useState<'month' | 'year'>('month');
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [activeCardIndex, setActiveCardIndex] = useState(0);
+  
+  // Supabase Fırsatlar State
+  const [firsatlar, setFirsatlar] = useState<FirsatData[]>([]);
+  const [loadingFirsatlar, setLoadingFirsatlar] = useState(true);
+  
+  // Supabase Story State
+  const [stories, setStories] = useState<StoryData[]>([]);
+  const [loadingStories, setLoadingStories] = useState(true);
+  
+  // Story detayları - Supabase'den gelen veriler varsa onları kullan
+  const getStoryDetails = (storyName: string): { description: string } => {
+    const story = stories.find(s => s.baslik === storyName);
+    if (story && story.aciklama) {
+      return { description: story.aciklama };
+    }
+    
+    // Default detaylar
+    const DEFAULT_STORY_DETAILS: Record<string, { description: string }> = {
+      Başkan: { description: 'Başkanın gençlere özel mesajlarını ve projelerini keşfet.' },
+      Duyurular: { description: 'Şanlıurfa\'da gençleri ilgilendiren en güncel haber ve duyurular.' },
+      'Kültür Sanat': { description: 'Konserler, sergiler, tiyatrolar ve çok daha fazlası burada.' },
+      Ulaşım: { description: 'Otobüs hatları, seferler ve kampüs ulaşımı hakkında hızlı bilgiler.' },
+      Gençlik: { description: 'Gençlik merkezleri, kulüpler ve etkinliklerden haberdar ol.' },
+    };
+    
+    return DEFAULT_STORY_DETAILS[storyName] || { description: '' };
+  };
+  
+  // Dinamik HEADER_NAV - Supabase'den gelen veriler varsa onları kullan, yoksa default
+  const headerNav = stories.length > 0 
+    ? stories.map(story => ({
+        name: story.baslik,
+        icon: story.icon ? (ICON_MAP[story.icon.toLowerCase()] || User) : User,
+        image: processImageUrl(story.resim_url, 'hikaye_resimleri') || 'https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?q=80&w=2670&auto=format&fit=crop',
+      }))
+    : DEFAULT_STORIES;
   
   const MONTHS = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
   const DAYS = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
@@ -160,8 +230,46 @@ const HomeScreen = () => {
   const API_KEY = "86c0bfac95367500f94f82e107ad2332"; 
   const SEHIR_KOORDINAT = { lat: 37.1674, lon: 38.7955 };
 
+  // Fırsatları Supabase'den Çek
+  const fetchFirsatlar = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('firsatlar')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (data) setFirsatlar(data);
+      if (error) console.log("Fırsat hatası:", error);
+    } catch (e) {
+      console.log(e);
+    } finally {
+      setLoadingFirsatlar(false);
+    }
+  };
+
+  // Hikayeleri Supabase'den Çek
+  const fetchStories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('hikayeler')
+        .select('*')
+        .order('sira', { ascending: true });
+      
+      if (data && data.length > 0) {
+        setStories(data);
+      }
+      if (error) console.log("Hikaye hatası:", error);
+    } catch (e) {
+      console.log(e);
+    } finally {
+      setLoadingStories(false);
+    }
+  };
+
   useEffect(() => {
     fetchAllWeatherData();
+    fetchFirsatlar();
+    fetchStories();
   }, []);
 
   const fetchAllWeatherData = async () => {
@@ -206,7 +314,7 @@ const HomeScreen = () => {
     });
   };
 
-  const activeStory = activeStoryIndex !== null ? HEADER_NAV[activeStoryIndex] : null;
+  const activeStory = activeStoryIndex !== null ? headerNav[activeStoryIndex] : null;
 
   const handleNavigation = (item: typeof QUICK_ACCESS_NAV[0]) => {
       if(item.type === 'tab') {
@@ -216,10 +324,53 @@ const HomeScreen = () => {
       }
   }
 
+  const handleCardScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const slideSize = 170 + 12; 
+    const contentOffsetX = event.nativeEvent.contentOffset.x;
+    const index = Math.round(contentOffsetX / slideSize);
+    setActiveCardIndex(index);
+  };
+
+  // Kategori Temaları
+  const getCategoryTheme = (kategori: string | null | undefined) => {
+    if (!kategori) {
+      return { icon: Gift, color: '#FF6B35', bg: '#fff7ed' };
+    }
+    
+    // Kategori değerini normalize et (trim, küçük harfe çevir, boşlukları normalize et)
+    const normalizedKategori = kategori.trim().toLowerCase().replace(/\s+/g, ' ');
+    
+    // Kategori eşleştirmesi (case-insensitive ve esnek)
+    if (normalizedKategori.includes('yiyecek') || normalizedKategori.includes('içecek')) {
+      return { icon: Coffee, color: '#e67e22', bg: '#fff7ed' };
+    }
+    if (normalizedKategori.includes('giyim')) {
+      return { icon: Shirt, color: '#9b59b6', bg: '#fbf7ff' };
+    }
+    if (normalizedKategori.includes('teknoloji')) {
+      return { icon: Smartphone, color: '#3498db', bg: '#f0f9ff' };
+    }
+    if (normalizedKategori.includes('etkinlik') || normalizedKategori.includes('bileti')) {
+      return { icon: Ticket, color: '#e74c3c', bg: '#fef2f2' };
+    }
+    if (normalizedKategori.includes('öğrenci') || normalizedKategori.includes('özel')) {
+      return { icon: GraduationCap, color: '#2ecc71', bg: '#f0fdf4' };
+    }
+    if (normalizedKategori.includes('indirim')) {
+      return { icon: Tag, color: '#f43f5e', bg: '#fff1f2' };
+    }
+    if (normalizedKategori.includes('kampanya')) {
+      return { icon: Megaphone, color: '#f59e0b', bg: '#fffbeb' };
+    }
+    
+    // Default tema
+    return { icon: Gift, color: '#FF6B35', bg: '#fff7ed' };
+  };
+
   const handleNextStory = () => {
     if (activeStoryIndex === null) return;
     const nextIndex = activeStoryIndex + 1;
-    if (nextIndex < HEADER_NAV.length) {
+    if (nextIndex < headerNav.length) {
       setActiveStoryIndex(nextIndex);
     } else {
       setActiveStoryIndex(null);
@@ -228,7 +379,7 @@ const HomeScreen = () => {
 
   const handleStoryDetail = () => {
     if (activeStoryIndex === null) return;
-    const story = HEADER_NAV[activeStoryIndex];
+    const story = headerNav[activeStoryIndex];
     switch (story.name) {
       case 'Ulaşım': navigation.navigate('Main', { screen: 'Transport' as keyof MainTabParamList }); break;
       case 'Kültür Sanat': navigation.navigate('Magazine'); break;
@@ -306,15 +457,12 @@ const HomeScreen = () => {
             <View style={styles.badge}>
               <Text style={styles.badgeText}>◎ ŞANLIURFA</Text>
             </View>
-            <View style={styles.avatar}>
-                <Text style={styles.avatarLetter}>M</Text>
-            </View>
           </View>
           <Text style={styles.greeting}>Selam, Mert! 👋</Text>
           <Text style={styles.greetingSub}>Bugün nasıl gidiyor?</Text>
 
           <View style={styles.headerNavContainer}>
-              {HEADER_NAV.map((item, index) => (
+              {headerNav.map((item, index) => (
                   <TouchableOpacity
                     key={item.name}
                     style={styles.headerNavItem}
@@ -401,24 +549,71 @@ const HomeScreen = () => {
                 </TouchableOpacity>
             </View>
 
-            <Text style={[styles.sectionTitle, { marginTop: 28 }, isDark && { color: '#94a3b8' }]}>Genç Kart indirimleri</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.partnersScrollContent}>
-              {MOCK_PARTNERS.map(partner => {
-                const Icon = partner.icon;
-                return (
-                  <TouchableOpacity
-                    key={partner.id}
-                    style={[styles.partnerCard, { backgroundColor: partner.bgColor }, isDark && { backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155' }]}
-                    activeOpacity={0.9}
-                    onPress={() => navigation.navigate('PartnerDetail', { partnerId: partner.id })}
-                  >
-                    <View style={[styles.partnerIconWrapper, isDark && { backgroundColor: '#334155' }]}><Icon color={isDark ? '#e2e8f0' : partner.iconColor} size={22} /></View>
-                    <Text style={[styles.partnerName, isDark && { color: '#f8fafc' }]} numberOfLines={1}>{partner.name}</Text>
-                    <Text style={[styles.partnerOffer, isDark && { color: '#cbd5e1' }]}>{partner.offer}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+            <Text style={[styles.sectionTitle, { marginTop: 28 }, isDark && { color: '#94a3b8' }]}>Genç Kart Fırsatları</Text>
+            
+            <View style={styles.partnersScrollWrapper}>
+              {loadingFirsatlar ? (
+                  <View style={{height: 100, justifyContent:'center', alignItems:'center'}}>
+                      <ActivityIndicator color={Colors.primary.indigo} />
+                  </View>
+              ) : firsatlar.length === 0 ? (
+                  <View style={{height: 100, justifyContent:'center', alignItems:'center'}}>
+                      <Text style={{color: isDark ? '#cbd5e1' : '#64748b'}}>Henüz aktif fırsat bulunmuyor.</Text>
+                  </View>
+              ) : (
+                  <>
+                    <ScrollView 
+                        horizontal 
+                        showsHorizontalScrollIndicator={false} 
+                        contentContainerStyle={styles.partnersScrollContent}
+                        onScroll={handleCardScroll} 
+                        scrollEventThrottle={16}
+                        snapToInterval={170 + 12}
+                        decelerationRate="fast"
+                    >
+                        {firsatlar.map(partner => {
+                            const theme = getCategoryTheme(partner.kategori);
+                            const Icon = theme.icon;
+                            return (
+                                <TouchableOpacity
+                                key={partner.id}
+                                style={[
+                                    styles.partnerCard, 
+                                    { backgroundColor: theme.bg || '#fff7ed' }, 
+                                    isDark && { backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155' }
+                                ]}
+                                activeOpacity={0.9}
+                                onPress={() => navigation.navigate('PartnerDetail', { partnerId: partner.id.toString() })}
+                                >
+                                <View style={[styles.partnerIconWrapper, { backgroundColor: isDark ? '#334155' : 'rgba(255,255,255,0.8)' }]}>
+                                    <Icon color={theme.color} size={22} />
+                                </View>
+                                <Text style={[styles.partnerName, isDark && { color: '#f8fafc' }]} numberOfLines={1}>{partner.baslik}</Text>
+                                <Text style={[styles.partnerOffer, isDark && { color: '#cbd5e1' }]} numberOfLines={1}>{partner.kategori}</Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </ScrollView>
+
+                    <View style={styles.paginationContainer}>
+                        {firsatlar.map((_, index) => {
+                            const isActive = index === activeCardIndex;
+                            return (
+                            <Animated.View 
+                                key={index} 
+                                style={[
+                                styles.paginationDot,
+                                isActive && styles.paginationDotActive,
+                                isDark && !isActive && { backgroundColor: '#475569' },
+                                isDark && isActive && { backgroundColor: '#818cf8' }
+                                ]} 
+                            />
+                            );
+                        })}
+                    </View>
+                  </>
+              )}
+            </View>
           </View>
         </View>
 
@@ -435,7 +630,9 @@ const HomeScreen = () => {
                 </TouchableOpacity>
                 <View style={styles.storyTextOverlay}>
                   <Text style={styles.storyTitle}>{activeStory.name}</Text>
-                  {STORY_DETAILS[activeStory.name]?.description && <Text style={styles.storyDescription}>{STORY_DETAILS[activeStory.name].description}</Text>}
+                  {getStoryDetails(activeStory.name).description && (
+                    <Text style={styles.storyDescription}>{getStoryDetails(activeStory.name).description}</Text>
+                  )}
                   <View style={styles.storyCtaRow}>
                     <Text style={styles.storyHintText}>Yukarı kaydır → Detay</Text>
                     <TouchableOpacity style={styles.storyCtaButton} activeOpacity={0.9} onPress={handleStoryDetail}>
@@ -709,8 +906,6 @@ const styles = StyleSheet.create({
     headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     badge: { backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
     badgeText: { color: Colors.white, fontWeight: 'bold' },
-    avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.accent.amber, justifyContent: 'center', alignItems: 'center' },
-    avatarLetter: { color: Colors.white, fontSize: 20, fontWeight: 'bold' },
     greeting: { fontSize: 32, fontWeight: 'bold', color: Colors.white, marginTop: 10 },
     greetingSub: { fontSize: 16, color: 'rgba(255,255,255,0.85)', marginTop: 4 },
     headerNavContainer: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 20 },
@@ -739,7 +934,7 @@ const styles = StyleSheet.create({
     colorOverlay: { ...StyleSheet.absoluteFillObject },
     quickAccessText: { marginTop: 8, fontWeight: '600', color: Colors.darkGray },
     partnersScrollContent: { paddingHorizontal: 20, paddingVertical: 4 },
-    partnerCard: { width: 170, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 14, marginRight: 12, justifyContent: 'space-between' },
+    partnerCard: { width: 170, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 14, marginRight: 12, justifyContent: 'space-between', backgroundColor: '#fff7ed' },
     partnerIconWrapper: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.9)', justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
     partnerName: { fontSize: 14, fontWeight: '600', color: Colors.darkGray, marginBottom: 4 },
     partnerOffer: { fontSize: 13, fontWeight: '500', color: '#4b5563' },
@@ -815,6 +1010,25 @@ const styles = StyleSheet.create({
     specialDayRowEmoji: { fontSize: 16, marginRight: 8 },
     specialDayRowDate: { fontSize: 13, fontWeight: '600', color: '#6b7280', marginRight: 8, width: 24 },
     specialDayRowName: { fontSize: 13, fontWeight: '500', color: Colors.darkGray, flex: 1 },
+    // Genç Kart Fırsatları Stilleri
+    partnersScrollWrapper: { position: 'relative', width: '100%' },
+    paginationContainer: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginTop: 10,
+      gap: 8,
+    },
+    paginationDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: '#d1d5db',
+    },
+    paginationDotActive: {
+      width: 24,
+      backgroundColor: Colors.primary.indigo,
+    },
     // Yeni Etkinlik Stilleri
     indicatorContainer: { flexDirection: 'row', alignItems: 'center', marginTop: -2 },
     specialDayEmojiMini: { fontSize: 8 },

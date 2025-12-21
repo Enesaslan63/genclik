@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { Home, Bus, QrCode, MessageSquare, User } from 'lucide-react-native';
-import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { BlurView } from 'expo-blur';
 import { Colors } from '@/constants/Colors';
 
@@ -13,30 +12,31 @@ const ICONS = {
   Profile: User,
 };
 
-const CustomTabBar = ({ state, descriptors, navigation }: BottomTabBarProps) => {
+type TabName = 'Home' | 'Transport' | 'GencKart' | 'Assistant' | 'Profile';
+
+interface CustomTabBarProps {
+  activeIndex: number;
+  onTabPress: (index: number) => void;
+  tabNames: readonly TabName[];
+}
+
+const CustomTabBar = ({ activeIndex, onTabPress, tabNames }: CustomTabBarProps) => {
   return (
     <View style={styles.container}>
       <BlurView intensity={90} tint="dark" style={styles.blurView}>
-        {state.routes.map((route, index) => {
-          const { options } = descriptors[route.key];
-          const isFocused = state.index === index;
-          const Icon = ICONS[route.name as keyof typeof ICONS];
+        {tabNames.map((tabName, index) => {
+          const isFocused = activeIndex === index;
+          const Icon = ICONS[tabName];
 
           const onPress = () => {
-            const event = navigation.emit({
-              type: 'tabPress',
-              target: route.key,
-              canPreventDefault: true,
-            });
-
-            if (!isFocused && !event.defaultPrevented) {
-              navigation.navigate(route.name);
+            if (!isFocused) {
+              onTabPress(index);
             }
           };
 
           return (
             <TouchableOpacity
-              key={route.key}
+              key={tabName}
               accessibilityRole="button"
               accessibilityState={isFocused ? { selected: true } : {}}
               onPress={onPress}

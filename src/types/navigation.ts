@@ -23,6 +23,7 @@ export type RootStackParamList = {
   PartnerDetail: { partnerId: string };
   WeatherDetail: { weatherData?: any; forecastData?: any; airQualityData?: any };
    HeritageDetail: { id: string };
+   EventDetail: { eventId: string };
 };
 
 // HomeScreen için özel tip oluşturma. Bu, hem Stack hem de Tab tiplerini birleştirir.

@@ -294,19 +294,37 @@ const WeatherDetailScreen: React.FC<WeatherDetailScreenProps> = ({ route, naviga
   const getHourlyForecast = () => {
     if (!forecastData?.list) return [];
     
-    return forecastData.list.slice(0, 8).map((item: any, index: number) => {
+    const result: any[] = [];
+    
+    // İlk eleman: "Şimdi" - Current weather verisini kullan
+    if (weatherData) {
+      const currentHour = new Date().getHours();
+      const isNight = currentHour < 6 || currentHour > 19;
+      result.push({
+        time: 'Şimdi',
+        temp: Math.round(weatherData.main.temp), // Current weather'dan al
+        icon: weatherData.weather[0].id, // Current weather'dan al
+        isNight,
+        pop: 0, // Current weather'da yağış olasılığı yok
+      });
+    }
+    
+    // Sonraki saatler için forecast verisini kullan (ilk 7 eleman)
+    forecastData.list.slice(0, 7).forEach((item: any) => {
       const date = new Date(item.dt * 1000);
       const hour = date.getHours();
       const isNight = hour < 6 || hour > 19;
       
-      return {
-        time: index === 0 ? 'Şimdi' : `${hour.toString().padStart(2, '0')}:00`,
+      result.push({
+        time: `${hour.toString().padStart(2, '0')}:00`,
         temp: Math.round(item.main.temp),
         icon: item.weather[0].id,
         isNight,
-        pop: Math.round((item.pop || 0) * 100), // Yağış olasılığı
-      };
+        pop: Math.round((item.pop || 0) * 100),
+      });
     });
+    
+    return result;
   };
 
   // 5 günlük tahmin (gerçek veri)
